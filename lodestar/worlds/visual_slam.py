@@ -67,11 +67,16 @@ def _graph(intr, frames, gap=8, min_shared=12):
     and loop-closure edges (far-in-time frames sharing >= min_shared tracks). Also returns
     the drift-prone odometry-chained initial trajectory."""
     bps = [_bp(f, intr) for f in frames]
-    T = [np.eye(4)]; edges = []
+    T = [np.eye(4)]; edges = []; prev = np.eye(4)
     for i in range(len(frames) - 1):
         c = sorted(set(bps[i]) & set(bps[i + 1]))
-        Xi = np.array([bps[i][k] for k in c]); Xj = np.array([bps[i + 1][k] for k in c])
-        R, t = _proc(Xj, Xi); edges.append((i, i + 1, R, t)); T.append(T[-1] @ _T(R, t))
+        if len(c) < 3:
+            Tij = prev                          # constant-velocity fallback for thin overlap
+        else:
+            Xi = np.array([bps[i][k] for k in c]); Xj = np.array([bps[i + 1][k] for k in c])
+            R, t = _proc(Xj, Xi); Tij = _T(R, t)
+        prev = Tij
+        edges.append((i, i + 1, Tij[:3, :3], Tij[:3, 3])); T.append(T[-1] @ Tij)
     for i in range(len(frames)):
         for j in range(i + gap, len(frames)):
             c = sorted(set(bps[i]) & set(bps[j]))

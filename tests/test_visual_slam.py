@@ -31,3 +31,11 @@ def test_loop_closure_helps_offline():
     # on a looping path, full SLAM must beat VO-only by a clear margin
     poses, intr, frames = _world(0)
     assert ate(run_slam(intr, frames), poses) < 0.5 * ate(run_vo_only(intr, frames), poses)
+
+
+def test_thin_overlap_degrades_not_crashes():
+    # extreme world: consecutive frames may share <3 tracks. The constant-velocity fallback
+    # must keep the front-end running (no empty-Procrustes crash); the result is bad, not an error.
+    poses, intr, frames = _world(loops=1.0, r=12.0, F=120)
+    est = run_slam(intr, frames)
+    assert len(est) == len(poses)

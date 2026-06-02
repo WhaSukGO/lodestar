@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 
-from .viz import viz_posegraph, viz_slam, viz_vo
+from .viz import viz_posegraph, viz_slam, viz_suite, viz_vo
 
 
 def main() -> None:
@@ -15,8 +15,10 @@ def main() -> None:
                      ("rung1_vo", viz_vo),
                      ("rung2_slam", viz_slam)]:
         path = os.path.join(outdir, name + ".png")
-        info = fn(path)
-        print(f"  wrote docs/img/{name}.png   ({info})")
+        print(f"  wrote docs/img/{name}.png   ({fn(path)})")
+    for rung in ("0", "1", "2"):                         # robustness grids (viz x suite)
+        path = os.path.join(outdir, f"rung{rung}_suite.png")
+        print(f"  wrote docs/img/rung{rung}_suite.png   ({viz_suite(rung, path)})")
 
 
 if __name__ == "__main__":

@@ -28,6 +28,58 @@ def _umeyama(P, Q, dim):
     return (R @ P.T).T + (mq - R @ mp)
 
 
+def _panel_data(rung: str, world_kwargs: dict):
+    """For one scenario: (gt_xy, est_xy, metric, passed) — honest solver, 2D for plotting.
+    Reuses the rung's own solver + metric; estimate aligned to GT exactly as the oracle does
+    (Rung 1 needs no alignment — frame 0 is identity for both)."""
+    from .scenarios import RUNGS
+    th = RUNGS[rung]["task"]().threshold
+    if rung == "0":
+        from .worlds.posegraph2d import _world, ate, solve_posegraph
+        gt, nodes, edges = _world(**world_kwargs)
+        est = np.array(solve_posegraph(nodes.tolist(), edges))
+        m = ate(est, gt)
+        return gt[:, :2], _umeyama(est, gt, 2), m, m <= th
+    if rung == "1":
+        from .worlds.visual_odometry import _world, rpe, run_vo
+        poses, intr, frames = _world(**world_kwargs)
+        est = run_vo(intr, frames); m = rpe(est, poses)
+        gp = np.array([T[:3, 3] for T in poses])[:, [2, 0]]   # top-down (z, x)
+        ep = np.array([T[:3, 3] for T in est])[:, [2, 0]]
+        return gp, ep, m, m <= th
+    from .worlds.visual_slam import _world, ate, run_slam
+    poses, intr, frames = _world(**world_kwargs)
+    est = run_slam(intr, frames); m = ate(est, poses)
+    gp = np.array([T[:3, 3] for T in poses])
+    ep = _umeyama([T[:3, 3] for T in est], gp, 3)
+    return gp[:, [2, 0]], ep[:, [2, 0]], m, m <= th
+
+
+def viz_suite(rung: str, out_path: str) -> str:
+    """Robustness grid: the honest solver's trajectory across each scenario of a rung, panels
+    colored by the verifier's verdict. Makes the robustness table visual — you see drift grow
+    and see exactly where VERIFIED flips to REJECTED."""
+    from .scenarios import RUNGS
+    cfg = RUNGS[rung]; scen = cfg["scenarios"]; metric = cfg["task"]().metric
+    n = len(scen)
+    fig, axes = plt.subplots(1, n, figsize=(3.3 * n, 3.7))
+    n_pass = 0
+    for ax, (name, kw) in zip(np.atleast_1d(axes), scen.items()):
+        gt_xy, est_xy, m, passed = _panel_data(rung, kw)
+        n_pass += int(passed)
+        col = "#16a34a" if passed else "#dc2626"
+        ax.plot(gt_xy[:, 0], gt_xy[:, 1], "k-", lw=2.0, label="ground truth")
+        ax.plot(est_xy[:, 0], est_xy[:, 1], color=col, lw=1.6, label="honest estimate")
+        ax.scatter([gt_xy[0, 0]], [gt_xy[0, 1]], c="k", s=18, zorder=5)
+        ax.set_title(f"{name}\n{metric} {m:.3f} → {'VERIFIED' if passed else 'REJECTED'}",
+                     color=col, fontsize=9)
+        ax.set_aspect("equal"); ax.set_xticks([]); ax.set_yticks([]); ax.grid(alpha=0.15)
+    fig.suptitle(f"Rung {rung} — {cfg['label']}: same honest solver, harder environments "
+                 f"(oracle {metric} {cfg['task']().op} {cfg['task']().threshold})", fontsize=11)
+    fig.tight_layout(rect=(0, 0, 1, 0.92)); fig.savefig(out_path, dpi=110); plt.close(fig)
+    return f"{n_pass}/{n} scenarios VERIFIED"
+
+
 def viz_posegraph(out_path: str, seed: int = 0) -> str:
     """Rung 0 (2D): GT vs drifted odometry vs optimized, with loop-closure chords."""
     from .worlds.posegraph2d import _world, ate, solve_posegraph

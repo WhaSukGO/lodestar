@@ -113,6 +113,11 @@ pose-graph optimizer is correctly REJECTED. (Rung 1 stays robust to sparse landm
 fails a single-pass `no-loops` world for the same reason as Rung 0.) This is how a real
 benchmark works — many scenarios — and how overfitting to one world gets caught.
 
+The same table, visualized — watch the trajectory degrade left→right and the verdict flip
+green→red (`python -m slamtest.run_viz`):
+
+![](docs/img/rung0_suite.png)
+
 ## Roadmap (rung by rung — start cheap, add fidelity only when each rung holds)
 
 | Rung | Task | Input | Oracle | Deps |

@@ -1,12 +1,25 @@
 # Lodestar — a 3D testbed that *verifies* SLAM
 
+[![tests](https://github.com/WhaSukGO/lodestar/actions/workflows/ci.yml/badge.svg)](https://github.com/WhaSukGO/lodestar/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![python](https://img.shields.io/badge/python-3.10%2B-blue)
+![compute](https://img.shields.io/badge/compute-CPU--only-success)
+
 > A lodestar guides a ship by a fixed reference; this one grades a SLAM algorithm against a
 > fixed, hidden ground truth.
 
-A **ground-truth generator + geometric oracle** for SLAM. SLAM always outputs *a*
-trajectory and *a* map — whether it's **correct** can't be known without ground truth you
-can't cheaply get in the real world. A synthetic world gives perfect ground truth for free,
-so an algorithm's estimate can be scored on a **held-out** trajectory it never saw.
+**Grade a SLAM algorithm on a trajectory it never saw.** SLAM always outputs *a* trajectory —
+whether it's **correct** can't be known without ground truth you can't cheaply get in the real
+world. A synthetic world gives perfect ground truth for free, so an estimate is scored on a
+**held-out** trajectory. The honest solver lands on it (green → VERIFIED); a degenerate one
+that merely *runs* drifts off (red → REJECTED):
+
+![](docs/img/rung0_suite.png)
+
+Concretely, Lodestar is a **ground-truth generator + geometric oracle**: it builds synthetic
+worlds (pose-graph / RGBD feature tracks / looping scenes), runs your algorithm in a sandbox,
+and scores its trajectory against the hidden ground truth with **ATE / RPE**. "It produced a
+trajectory" is never mistaken for "the trajectory is correct."
 
 This repo is the **world builder + SLAM oracle**. The **verifier is reused, not forked** —
 it's the same Touchstone spine from [`blueberry_ver2`](../blueberry_ver2) (sandboxed run +
@@ -135,10 +148,8 @@ pose-graph optimizer is correctly REJECTED. (Rung 1 stays robust to sparse landm
 fails a single-pass `no-loops` world for the same reason as Rung 0.) This is how a real
 benchmark works — many scenarios — and how overfitting to one world gets caught.
 
-The same table, visualized — watch the trajectory degrade left→right and the verdict flip
-green→red (`python -m lodestar.run_viz`):
-
-![](docs/img/rung0_suite.png)
+The Rung 0 grid is shown at the top of this README; `python -m lodestar.run_viz` also writes
+the Rung 1 and Rung 2 robustness grids into `docs/img/`.
 
 ## Roadmap (rung by rung — start cheap, add fidelity only when each rung holds)
 

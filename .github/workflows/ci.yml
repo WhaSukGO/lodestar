@@ -1,0 +1,28 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Lodestar reuses the Touchstone verifier — clone it as the spine resolves it.
+      - name: Clone Touchstone verifier
+        run: git clone --depth 1 https://github.com/WhaSukGO/touchstone.git "$RUNNER_TEMP/touchstone"
+
+      - name: Install dependencies
+        run: pip install numpy scipy matplotlib pytest
+
+      # Proves clone-and-run: the offline rungs/suite/viz pass against Touchstone's master.
+      - name: Run tests
+        env:
+          TOUCHSTONE_PATH: ${{ runner.temp }}/touchstone
+        run: python -m pytest -q

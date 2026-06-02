@@ -92,6 +92,27 @@ measures exactly that on a held-out trajectory.
 python -m slamtest.run_slam_demo
 ```
 
+## Selectable environments — a robustness suite
+
+Each rung's world is parameterized (noise, loop-closure density, landmark count, trajectory
+shape) with named presets. The suite grades **one solver across many environments** under the
+**same fixed oracle** — so the question becomes "does the honest algorithm still pass when the
+world gets harder?" (`python -m slamtest.run_suite`)
+
+```
+=== Rung 0 — 2D pose-graph | honest solver | oracle ate <= 0.12 ===
+  scenario           ate   verdict
+  easy             0.033   VERIFIED
+  default          0.062   VERIFIED
+  high-noise       0.152   REJECTED     # loops help, but not beyond a point
+  no-loops         0.280   REJECTED     # no revisits -> drift uncorrectable
+```
+
+The honest solver is **not** rubber-stamped: remove the loop closures and the very same
+pose-graph optimizer is correctly REJECTED. (Rung 1 stays robust to sparse landmarks; Rung 2
+fails a single-pass `no-loops` world for the same reason as Rung 0.) This is how a real
+benchmark works — many scenarios — and how overfitting to one world gets caught.
+
 ## Roadmap (rung by rung — start cheap, add fidelity only when each rung holds)
 
 | Rung | Task | Input | Oracle | Deps |

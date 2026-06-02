@@ -73,16 +73,21 @@ def solve_posegraph(nodes_init, edges, iters=30):
 exec(_SOLVE_SRC, globals())   # -> _v2t, _t2v, _nrm, solve_posegraph (numpy as np)
 
 
-def _world(seed: int, n: int = _N):
-    """Deterministic world: ground-truth poses, drifted odometry init, constraint edges."""
+def _world(seed: int = 0, n: int = _N, loops: float = 2.0,
+           odo_sigma=(0.04, 0.04, 0.025), lc_sigma=(0.02, 0.02, 0.01), lc_radius: float = 0.20):
+    """Deterministic world: ground-truth poses, drifted odometry init, constraint edges.
+
+    Knobs (for selectable environments): `loops` full revolutions of the path, `odo_sigma`
+    odometry noise, `lc_sigma` loop-closure noise, `lc_radius` revisit-detection radius
+    (0 disables loop closures → drift becomes uncorrectable)."""
     rng = np.random.default_rng(seed)
     gt = [np.array([0.0, 0.0, 0.0])]
     for _ in range(1, n):
-        step = np.array([0.3, 0.0, 2 * (2 * np.pi) / n])     # two full loops over n steps
+        step = np.array([0.3, 0.0, loops * (2 * np.pi) / n])
         gt.append(_t2v(_v2t(gt[-1]) @ _v2t(step)))
     gt = np.array(gt)
 
-    odo = np.array([0.04, 0.04, 0.025]); lc = np.array([0.02, 0.02, 0.01])
+    odo = np.array(odo_sigma); lc = np.array(lc_sigma)
     edges: list = []; nodes = [gt[0].copy()]
     for i in range(n - 1):                                   # sequential odometry (noisy)
         rel = _t2v(np.linalg.inv(_v2t(gt[i])) @ _v2t(gt[i + 1]))
@@ -90,12 +95,13 @@ def _world(seed: int, n: int = _N):
         edges.append([i, i + 1, *meas.tolist(), 1 / odo[0] ** 2, 1 / odo[2] ** 2])
         nodes.append(_t2v(_v2t(nodes[-1]) @ _v2t(meas)))     # integrate -> drifted guess
     P = gt[:, :2]
-    for i in range(n):                                       # loop closures (revisits)
-        for j in range(i + 5, n):
-            if np.linalg.norm(P[i] - P[j]) < 0.20:
-                rel = _t2v(np.linalg.inv(_v2t(gt[i])) @ _v2t(gt[j]))
-                meas = rel + rng.normal(0, lc)
-                edges.append([i, j, *meas.tolist(), 1 / lc[0] ** 2, 1 / lc[2] ** 2])
+    if lc_radius > 0:
+        for i in range(n):                                   # loop closures (revisits)
+            for j in range(i + 5, n):
+                if np.linalg.norm(P[i] - P[j]) < lc_radius:
+                    rel = _t2v(np.linalg.inv(_v2t(gt[i])) @ _v2t(gt[j]))
+                    meas = rel + rng.normal(0, lc)
+                    edges.append([i, j, *meas.tolist(), 1 / lc[0] ** 2, 1 / lc[2] ** 2])
     return gt, np.array(nodes), edges
 
 
@@ -117,10 +123,14 @@ def _poses_csv(poses) -> str:
 
 
 class PoseGraphProvider:
-    """inputs split: graph.json (nodes_init + edges). held-out: gt_poses.csv (true trajectory)."""
+    """inputs split: graph.json (nodes_init + edges). held-out: gt_poses.csv (true trajectory).
+    Pass `_world` knobs to select an environment, e.g. PoseGraphProvider(lc_radius=0.0)."""
+
+    def __init__(self, **world_kwargs):
+        self.world_kwargs = world_kwargs
 
     def fetch(self, ref: DatasetRef, dest: Path) -> None:
-        gt, nodes, edges = _world(_SEED)
+        gt, nodes, edges = _world(**self.world_kwargs)
         if ref.held_out:
             (dest / "gt_poses.csv").write_text(_poses_csv(gt))
         else:

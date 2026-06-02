@@ -76,8 +76,12 @@ def _rot(ax, ay, az):
     return Rz @ Ry @ Rx
 
 
-def _world(seed: int, F: int = _F, L: int = _L):
-    """Deterministic world: GT camera poses, intrinsics, per-frame RGBD observations."""
+def _world(seed: int = 0, F: int = _F, L: int = _L,
+           px_sigma: float = 0.7, depth_sigma: float = 0.01, depth_max: float = 9.0):
+    """Deterministic world: GT camera poses, intrinsics, per-frame RGBD observations.
+
+    Knobs (for selectable environments): `L` landmark count (fewer → thinner matches),
+    `px_sigma` pixel noise, `depth_sigma` relative depth noise, `depth_max` visibility range."""
     rng = np.random.default_rng(seed)
     fx = fy = 320.0; cx = cy = 240.0; W = Hh = 480
     poses = []
@@ -94,12 +98,13 @@ def _world(seed: int, F: int = _F, L: int = _L):
         out = []
         for lid, X in enumerate(Xc):
             Z = X[2]
-            if Z < 0.5 or Z > 9.0:                        # in front, within depth range
+            if Z < 0.5 or Z > depth_max:                  # in front, within depth range
                 continue
             u = fx * X[0] / Z + cx; v = fy * X[1] / Z + cy
             if 0 <= u < W and 0 <= v < Hh:
-                out.append([int(lid), float(u + rng.normal(0, 0.7)),
-                            float(v + rng.normal(0, 0.7)), float(Z * (1 + rng.normal(0, 0.01)))])
+                out.append([int(lid), float(u + rng.normal(0, px_sigma)),
+                            float(v + rng.normal(0, px_sigma)),
+                            float(Z * (1 + rng.normal(0, depth_sigma)))])
         frames.append(out)
     return poses, intr, frames
 
@@ -120,10 +125,14 @@ def _poses_csv(poses) -> str:
 
 
 class VisualOdometryProvider:
-    """inputs split: vo.json (intrinsics + per-frame RGBD obs). held-out: gt_poses.csv."""
+    """inputs split: vo.json (intrinsics + per-frame RGBD obs). held-out: gt_poses.csv.
+    Pass `_world` knobs to select an environment, e.g. VisualOdometryProvider(px_sigma=1.5)."""
+
+    def __init__(self, **world_kwargs):
+        self.world_kwargs = world_kwargs
 
     def fetch(self, ref: DatasetRef, dest: Path) -> None:
-        poses, intr, frames = _world(_SEED)
+        poses, intr, frames = _world(**self.world_kwargs)
         if ref.held_out:
             (dest / "gt_poses.csv").write_text(_poses_csv(poses))
         else:

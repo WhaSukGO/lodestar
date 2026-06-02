@@ -122,8 +122,8 @@ def _pose_line(T):
 exec(_SLAM_SRC, globals())   # -> _T, _bp, _proc, _graph, _optimize, run_slam, run_vo_only, ...
 
 
-def _orbit_pose(f: int, F: int, r: float = 4.5):
-    th = 2 * np.pi * (2 * f / F)                          # two orbits
+def _orbit_pose(f: int, F: int, r: float = 4.5, loops: float = 2.0):
+    th = 2 * np.pi * (loops * f / F)                      # `loops` revolutions
     pos = np.array([r * np.cos(th), 0.3 * np.sin(f * 0.3), r * np.sin(th)])
     fwd = np.array([np.cos(th), 0.0, np.sin(th)])         # look radially outward
     right = np.cross([0, 1.0, 0], fwd); right /= np.linalg.norm(right)
@@ -131,11 +131,16 @@ def _orbit_pose(f: int, F: int, r: float = 4.5):
     return _T(np.column_stack([right, up, fwd]), pos)
 
 
-def _world(seed: int, F: int = _F, L: int = _L):
-    """Deterministic looping world: GT poses (orbit x2), intrinsics, per-frame RGBD obs."""
+def _world(seed: int = 0, F: int = _F, L: int = _L, loops: float = 2.0, r: float = 4.5,
+           px_sigma: float = 0.9, depth_sigma: float = 0.012, depth_max: float = 15.0):
+    """Deterministic looping world: GT poses, intrinsics, per-frame RGBD obs.
+
+    Knobs (for selectable environments): `loops` revolutions — fewer revisits means fewer
+    loop closures, so drift becomes uncorrectable (loops=1 barely revisits); `r` orbit
+    radius; `px_sigma`/`depth_sigma` observation noise; `L` landmark count."""
     rng = np.random.default_rng(seed)
     fx = fy = 320.0; cx = cy = 240.0; W = Hh = 480
-    poses = [_orbit_pose(f, F) for f in range(F)]
+    poses = [_orbit_pose(f, F, r, loops) for f in range(F)]
     ang = rng.uniform(0, 2 * np.pi, L); rad = rng.uniform(7, 12, L)       # ring of landmarks
     M = np.c_[rad * np.cos(ang), rng.uniform(-3, 3, L), rad * np.sin(ang)]
     intr = (fx, fy, cx, cy); frames = []
@@ -145,12 +150,13 @@ def _world(seed: int, F: int = _F, L: int = _L):
         out = []
         for lid, X in enumerate(Xc):
             Z = X[2]
-            if Z < 0.5 or Z > 15.0:
+            if Z < 0.5 or Z > depth_max:
                 continue
             u = fx * X[0] / Z + cx; v = fy * X[1] / Z + cy
             if 0 <= u < W and 0 <= v < Hh:
-                out.append([int(lid), float(u + rng.normal(0, 0.9)),
-                            float(v + rng.normal(0, 0.9)), float(Z * (1 + rng.normal(0, 0.012)))])
+                out.append([int(lid), float(u + rng.normal(0, px_sigma)),
+                            float(v + rng.normal(0, px_sigma)),
+                            float(Z * (1 + rng.normal(0, depth_sigma)))])
         frames.append(out)
     return poses, intr, frames
 
@@ -171,10 +177,14 @@ def _poses_csv(poses) -> str:
 
 class VisualSlamProvider:
     """inputs split: vo.json (intrinsics + per-frame RGBD obs over a LOOPING path).
-    held-out: gt_poses.csv (true trajectory)."""
+    held-out: gt_poses.csv (true trajectory). Pass `_world` knobs to select an environment,
+    e.g. VisualSlamProvider(loops=1.0) for a path that barely revisits."""
+
+    def __init__(self, **world_kwargs):
+        self.world_kwargs = world_kwargs
 
     def fetch(self, ref: DatasetRef, dest: Path) -> None:
-        poses, intr, frames = _world(_SEED)
+        poses, intr, frames = _world(**self.world_kwargs)
         if ref.held_out:
             (dest / "gt_poses.csv").write_text(_poses_csv(poses))
         else:

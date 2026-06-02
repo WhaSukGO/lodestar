@@ -1,9 +1,9 @@
 """Run the robustness suite: grade a solver across each rung's selectable environments.
 
 Offline, no API. Examples:
-  python -m slamtest.run_suite                 # honest solver, all rungs
-  python -m slamtest.run_suite --rung 0        # one rung
-  python -m slamtest.run_suite --solver degenerate
+  python -m lodestar.run_suite                 # honest solver, all rungs
+  python -m lodestar.run_suite --rung 0        # one rung
+  python -m lodestar.run_suite --solver degenerate
 """
 from __future__ import annotations
 

@@ -1,4 +1,7 @@
-# Touchstone-SLAM (ver4) — a 3D testbed that *verifies* SLAM
+# Lodestar — a 3D testbed that *verifies* SLAM
+
+> A lodestar guides a ship by a fixed reference; this one grades a SLAM algorithm against a
+> fixed, hidden ground truth.
 
 A **ground-truth generator + geometric oracle** for SLAM. SLAM always outputs *a*
 trajectory and *a* map — whether it's **correct** can't be known without ground truth you
@@ -23,7 +26,7 @@ failures that shaped them, and the geometry/numerics tradeoffs taken.
 ## Preview — what the verifier sees
 
 The verdict is decided by a held-out number (ATE/RPE), but the picture shows *why*: drift
-accumulates, and loop closure pulls it back. (`python -m slamtest.run_viz`)
+accumulates, and loop closure pulls it back. (`python -m lodestar.run_viz`)
 
 | Rung 0 — 2D pose-graph | Rung 1 — RGBD VO | Rung 2 — full SLAM |
 |---|---|---|
@@ -43,14 +46,16 @@ The verifier grades it against the **hidden** ground-truth trajectory via SE(2)-
 | Solver | ATE (hidden GT) | Verdict |
 |---|---|---|
 | Honest pose-graph optimization (Gauss-Newton, uses loop closures) | **0.06 m** | VERIFIED |
+| Alternative impl — sparse scipy (`solvers/posegraph_scipy.py`) | **0.06 m** | VERIFIED |
 | Dead-reckoning (odometry only, ignores closures) | **0.28 m** | REJECTED |
 
-Both *ran* and produced a trajectory; only the one that actually cancels drift passes.
+Both *ran* and produced a trajectory; only the ones that actually cancel drift pass — and a
+*different* correct implementation (sparse scipy) is graded the same way.
 **It ran ≠ it's correct.** Held-out worlds (other seeds the producer never authored
 against) are how overfitting to one sequence gets caught.
 
 ```bash
-python -m slamtest.run_posegraph_demo      # offline, no API spend
+python -m lodestar.run_posegraph_demo      # offline, no API spend
 python -m pytest tests/ -q
 ```
 
@@ -69,7 +74,7 @@ against the **hidden** ground-truth trajectory.
 | Static — "the camera never moved" (identity every frame) | **0.36 m** | REJECTED |
 
 ```bash
-python -m slamtest.run_vo_demo
+python -m lodestar.run_vo_demo
 ```
 
 ## Rung 2 (done): full visual SLAM — VO + loop closure + SE(3) pose-graph
@@ -89,7 +94,7 @@ Both *ran*; loop closure is **what makes SLAM more than odometry**, and the veri
 measures exactly that on a held-out trajectory.
 
 ```bash
-python -m slamtest.run_slam_demo
+python -m lodestar.run_slam_demo
 ```
 
 ## Selectable environments — a robustness suite
@@ -97,7 +102,7 @@ python -m slamtest.run_slam_demo
 Each rung's world is parameterized (noise, loop-closure density, landmark count, trajectory
 shape) with named presets. The suite grades **one solver across many environments** under the
 **same fixed oracle** — so the question becomes "does the honest algorithm still pass when the
-world gets harder?" (`python -m slamtest.run_suite`)
+world gets harder?" (`python -m lodestar.run_suite`)
 
 ```
 === Rung 0 — 2D pose-graph | honest solver | oracle ate <= 0.12 ===
@@ -114,7 +119,7 @@ fails a single-pass `no-loops` world for the same reason as Rung 0.) This is how
 benchmark works — many scenarios — and how overfitting to one world gets caught.
 
 The same table, visualized — watch the trajectory degrade left→right and the verdict flip
-green→red (`python -m slamtest.run_viz`):
+green→red (`python -m lodestar.run_viz`):
 
 ![](docs/img/rung0_suite.png)
 
@@ -144,7 +149,7 @@ confirmed on data it never saw — ~3 API calls, ≈\$0.78. An agent solver stil
 pass**: it is graded by the same fixed verifier as everything else.
 
 ```bash
-python -m slamtest.run_committee_live --rung 1     # spends API tokens; key from ver2/.env
+python -m lodestar.run_committee_live --rung 1     # spends API tokens; key from ver2/.env
 ```
 
 (The solver runs under a `timeout` guard so blind-authored code that loops is rejected, not
@@ -152,7 +157,7 @@ hung.)
 
 ## Reuse
 
-`slamtest/_spine.py` locates the ver2 checkout (`$TOUCHSTONE_PATH`, else `../blueberry_ver2`)
+`lodestar/_spine.py` locates the ver2 checkout (`$TOUCHSTONE_PATH`, else `../blueberry_ver2`)
 and re-exports the seam ver4 plugs into: `build_implementer_harness`, `ImplementationTask`,
 `DatasetRef`. The pose-graph world is just a richer `DatasetProvider`; the SLAM algorithm is
 the swappable `author_fn`; the ATE grader is the task's fixed `eval_code`.

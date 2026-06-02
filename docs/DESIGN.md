@@ -1,4 +1,4 @@
-# Design — Touchstone-SLAM (ver4)
+# Design — Lodestar
 
 > How the project is structured, what is reused vs. new, and how a SLAM algorithm flows
 > through the verifier. For the *why* behind the engineering choices (and the past failures
@@ -20,7 +20,7 @@ a SLAM algorithm that writes code:   -->   run it in a sandbox, grade its output
 ```
 
 The **verifier is not forked** — it is the same Touchstone spine from
-[`blueberry_ver2`](../../blueberry_ver2), bridged in by `slamtest/_spine.py`
+[`blueberry_ver2`](../../blueberry_ver2), bridged in by `lodestar/_spine.py`
 (`$TOUCHSTONE_PATH`, else the sibling `../blueberry_ver2`). ver4 only adds the
 **domain**: worlds, algorithms, and oracles. The whole thesis is *swap the solver/domain,
 keep the verifier* — so every rung below is the same spine with a different provider,
@@ -37,7 +37,7 @@ Each rung is four things, and nothing else:
 | **Oracle** | task `eval_code` (`eval.py`) | SE(2)-aligned ATE | translational RPE | SE(3)-aligned ATE |
 | **Bar** | `Criterion(metric, op, threshold)` | `ate <= 0.12` | `rpe <= 0.15` | `ate <= 0.10` |
 
-All three live in `slamtest/worlds/{posegraph2d, visual_odometry, visual_slam}.py`. Adding a
+All three live in `lodestar/worlds/{posegraph2d, visual_odometry, visual_slam}.py`. Adding a
 rung means writing one file; the verifier is untouched.
 
 ## 4. Data-flow contract (held-out by construction)
@@ -119,13 +119,17 @@ verifier itself, not just the solvers.
 ## 9. Repository map
 
 ```
-slamtest/
-  _spine.py                 bridge to ver2's verifier (re-exports 6 symbols; no heavy deps)
+lodestar/
+  _spine.py                 bridge to ver2's verifier (re-exports the seam; no heavy deps)
   worlds/
-    posegraph2d.py          Rung 0: world + SE(2) GN optimizer + ATE oracle + 2 solvers
+    posegraph2d.py          Rung 0: world + SE(2) GN optimizer + ATE oracle + solvers
     visual_odometry.py      Rung 1: world + RGBD VO front-end + RPE oracle + 2 solvers
     visual_slam.py          Rung 2: world + VO+loop-closure+SE(3) GN + ATE oracle + 2 solvers
-  run_*_demo.py             narrated, offline, no API spend
+  solvers/
+    posegraph_scipy.py      alternative Rung-0 solver (sparse scipy) — graded the same way
+  scenarios.py / suite.py   selectable environments + robustness suite
+  viz.py                    trajectory + robustness-grid previews (matplotlib, inspection only)
+  run_*.py                  narrated runners, offline, no API spend (run_committee_live spends API)
 tests/                      per rung: end-to-end (through the real verifier) + offline algorithm
-docs/                       this file + ENGINEERING.md
+docs/                       this file + ENGINEERING.md + img/
 ```

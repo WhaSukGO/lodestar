@@ -207,5 +207,16 @@ open(os.path.join(os.environ["LAB_ARTIFACTS"], "trajectory.csv"), "w").write(
     "\\n".join(f"{p[0]},{p[1]},{p[2]}" for p in g["nodes_init"]))
 '''
 
-HONEST = _writer(_HONEST_BODY)        # real pose-graph optimization -> VERIFIED
+HONEST = _writer(_HONEST_BODY)        # real pose-graph optimization (dense numpy) -> VERIFIED
 ODOMETRY = _writer(_ODOMETRY_BODY)    # dead-reckoning, no loop closures -> REJECTED
+
+
+def _scipy_author(task, code_dir: Path, rec) -> Usage:
+    """Alternative honest solver: the sparse-scipy optimizer in solvers/posegraph_scipy.py,
+    written as the entry file. A different correct implementation, graded the same way."""
+    src = (Path(__file__).resolve().parent.parent / "solvers" / "posegraph_scipy.py").read_text()
+    (code_dir / task.entry_filename).write_text(src)
+    return Usage(0, 0)
+
+
+SCIPY = _scipy_author                 # sparse-scipy pose-graph optimizer -> VERIFIED

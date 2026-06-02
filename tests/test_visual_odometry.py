@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from slamtest._spine import ExperimentRecord, build_implementer_harness
-from slamtest.worlds.visual_odometry import (
+from lodestar._spine import ExperimentRecord, build_implementer_harness
+from lodestar.worlds.visual_odometry import (
     HONEST, STATIC, VisualOdometryProvider, _world, rpe, run_vo, vo_task,
 )
 

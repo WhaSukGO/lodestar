@@ -12,10 +12,10 @@ sandbox), so a closed-form rung (RGBD VO) is the best first target.
 Spends real API tokens (bounded: 1 planner + up to 2x(coder+reviewer) = <=5 short calls).
 Loads the API key from ver2's .env. Run:
 
-  python -m slamtest.run_committee_live            # Rung 1 (RGBD VO), default
-  python -m slamtest.run_committee_live --rung 0   # 2D pose-graph
-  python -m slamtest.run_committee_live --rung 2   # full visual SLAM
-  python -m slamtest.run_committee_live --model claude-opus-4-8
+  python -m lodestar.run_committee_live            # Rung 1 (RGBD VO), default
+  python -m lodestar.run_committee_live --rung 0   # 2D pose-graph
+  python -m lodestar.run_committee_live --rung 2   # full visual SLAM
+  python -m lodestar.run_committee_live --model claude-opus-4-8
 """
 from __future__ import annotations
 
@@ -30,9 +30,9 @@ from ._spine import (
 )
 
 _RUNGS = {
-    "0": ("slamtest.worlds.posegraph2d", "PoseGraphProvider", "posegraph_task", "2D pose-graph"),
-    "1": ("slamtest.worlds.visual_odometry", "VisualOdometryProvider", "vo_task", "RGBD visual odometry"),
-    "2": ("slamtest.worlds.visual_slam", "VisualSlamProvider", "slam_task", "full visual SLAM"),
+    "0": ("lodestar.worlds.posegraph2d", "PoseGraphProvider", "posegraph_task", "2D pose-graph"),
+    "1": ("lodestar.worlds.visual_odometry", "VisualOdometryProvider", "vo_task", "RGBD visual odometry"),
+    "2": ("lodestar.worlds.visual_slam", "VisualSlamProvider", "slam_task", "full visual SLAM"),
 }
 
 

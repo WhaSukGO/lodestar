@@ -4,7 +4,7 @@
   recover camera motion from feature  -->   run it, compare each frame-to-frame motion to
   tracks (or assume it never moved)         the HIDDEN ground truth, score RPE, gate
 
-Offline, no API spend, no renderer. Run:  python -m slamtest.run_vo_demo"""
+Offline, no API spend, no renderer. Run:  python -m lodestar.run_vo_demo"""
 from __future__ import annotations
 
 import tempfile

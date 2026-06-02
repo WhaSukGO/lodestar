@@ -4,7 +4,7 @@
   optimize the pose graph  ----------->    run it, align to the HIDDEN ground-truth
   (or just dead-reckon)                    trajectory, score ATE, pass/fail the oracle
 
-Offline, no API spend, no renderer. Run:  python -m slamtest.run_posegraph_demo"""
+Offline, no API spend, no renderer. Run:  python -m lodestar.run_posegraph_demo"""
 from __future__ import annotations
 
 import tempfile

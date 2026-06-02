@@ -4,7 +4,7 @@
   odometry + loop closure + optimize  -->     run it, align to the HIDDEN trajectory,
   (or just odometry = drifts)                 score ATE, gate
 
-Offline, no API spend, no renderer. Run:  python -m slamtest.run_slam_demo"""
+Offline, no API spend, no renderer. Run:  python -m lodestar.run_slam_demo"""
 from __future__ import annotations
 
 import tempfile

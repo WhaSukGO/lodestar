@@ -5,8 +5,8 @@ the same VO front-end WITHOUT loop closure -> REJECTED (drift). Proves the verif
 global trajectory accuracy, and that loop closure is what makes SLAM more than odometry."""
 from __future__ import annotations
 
-from slamtest._spine import ExperimentRecord, build_implementer_harness
-from slamtest.worlds.visual_slam import (
+from lodestar._spine import ExperimentRecord, build_implementer_harness
+from lodestar.worlds.visual_slam import (
     HONEST, VO_ONLY, VisualSlamProvider, _world, ate, run_slam, run_vo_only, slam_task,
 )
 

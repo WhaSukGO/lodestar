@@ -4,8 +4,8 @@ The same honest solver, graded by the same fixed oracle, passes easy/default and
 where the environment breaks its assumptions — and the verifier reports that honestly."""
 from __future__ import annotations
 
-from slamtest.scenarios import RUNGS
-from slamtest.suite import run_suite
+from lodestar.scenarios import RUNGS
+from lodestar.suite import run_suite
 
 
 def test_posegraph_robustness_table():

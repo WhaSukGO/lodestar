@@ -1,7 +1,7 @@
 """Smoke test: each preview renders a non-empty PNG (offline, no API)."""
 from __future__ import annotations
 
-from slamtest.viz import viz_posegraph, viz_slam, viz_suite, viz_vo
+from lodestar.viz import viz_posegraph, viz_slam, viz_suite, viz_vo
 
 
 def test_previews_render(tmp_path):

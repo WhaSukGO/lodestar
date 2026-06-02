@@ -1,6 +1,6 @@
 """Generate trajectory preview PNGs for all rungs into docs/img/.
 
-Offline, no API. Run:  python -m slamtest.run_viz"""
+Offline, no API. Run:  python -m lodestar.run_viz"""
 from __future__ import annotations
 
 import os

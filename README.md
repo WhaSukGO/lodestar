@@ -20,6 +20,19 @@ graph / VO / full SLAM                     HIDDEN ground-truth trajectory, score
 is. [docs/ENGINEERING.md](docs/ENGINEERING.md) — harness-engineering principles, the past
 failures that shaped them, and the geometry/numerics tradeoffs taken.
 
+## Preview — what the verifier sees
+
+The verdict is decided by a held-out number (ATE/RPE), but the picture shows *why*: drift
+accumulates, and loop closure pulls it back. (`python -m slamtest.run_viz`)
+
+| Rung 0 — 2D pose-graph | Rung 1 — RGBD VO | Rung 2 — full SLAM |
+|---|---|---|
+| ![](docs/img/rung0_posegraph.png) | ![](docs/img/rung1_vo.png) | ![](docs/img/rung2_slam.png) |
+
+Green (honest) lands on the hidden ground truth → VERIFIED; red (degenerate) drifts off →
+REJECTED. The plots are an inspection tool only — grading is still the independent oracle, not
+eyeballing.
+
 ## Rung 0 (done): "the popcount of SLAM" — 2D pose-graph optimization
 
 No renderer, no ML, pure numpy. A robot drives a self-overlapping 2D path; the solver gets

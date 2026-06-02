@@ -55,10 +55,19 @@ def main(rung: str = "1", model: str = DEFAULT_MODEL) -> None:
 
     spend = {"in": 0, "out": 0, "usd": 0.0, "calls": 0}
 
+    import time
+
     def counting_run_fn(prompt, **kw):
+        sysp = kw.get("system_prompt", "") or ""
+        role = ("planner" if "planning lead" in sysp else
+                "coder" if "implementer" in sysp else "reviewer")
+        t0 = time.time()
+        print(f"  [call {spend['calls'] + 1}] {role} ...", flush=True)
         r = run_agent(prompt, **kw)
         spend["in"] += r.usage.tokens_in; spend["out"] += r.usage.tokens_out
         spend["usd"] += r.cost_usd; spend["calls"] += 1
+        print(f"  [call {spend['calls']}] {role} done in {time.time() - t0:.0f}s "
+              f"(+{r.usage.tokens_out} tok)", flush=True)
         return r
 
     transcript: list = []

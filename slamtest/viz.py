@@ -1,0 +1,100 @@
+"""Visualization previews — make the verifier's verdict legible to a human.
+
+These plots are an INSPECTION tool, not part of grading. The oracle still decides
+VERIFIED/REJECTED from the held-out metric (ATE/RPE); these pictures just show *why* — you
+can see drift accumulate, and see loop closure pull it back. Pure matplotlib over the same
+worlds and solvers the tests use; no renderer, no API.
+
+Each function builds a rung's world, runs the honest and degenerate solvers, overlays their
+trajectories on the hidden ground truth, and writes a PNG. Estimates are aligned to GT with
+the same Umeyama fit the oracle uses, so the picture shows trajectory *shape* error (not an
+arbitrary global frame)."""
+from __future__ import annotations
+
+import numpy as np
+
+import matplotlib
+matplotlib.use("Agg")  # headless
+import matplotlib.pyplot as plt  # noqa: E402
+
+
+def _umeyama(P, Q, dim):
+    """Rigid fit mapping P onto Q (no scale) — same gauge the ATE/RPE oracles use."""
+    P = np.asarray(P)[:, :dim]; Q = np.asarray(Q)[:, :dim]
+    mp, mq = P.mean(0), Q.mean(0)
+    U, _, Vt = np.linalg.svd((P - mp).T @ (Q - mq))
+    D = np.eye(dim); D[-1, -1] = np.sign(np.linalg.det(Vt.T @ U.T))
+    R = Vt.T @ D @ U.T
+    return (R @ P.T).T + (mq - R @ mp)
+
+
+def viz_posegraph(out_path: str, seed: int = 0) -> str:
+    """Rung 0 (2D): GT vs drifted odometry vs optimized, with loop-closure chords."""
+    from .worlds.posegraph2d import _world, ate, solve_posegraph
+    gt, nodes, edges = _world(seed)
+    opt = np.array(solve_posegraph(nodes.tolist(), edges))
+    odo_a = _umeyama(nodes, gt, 2)
+    opt_a = _umeyama(opt, gt, 2)
+    ate_odo, ate_opt = ate(nodes, gt), ate(opt, gt)
+
+    fig, ax = plt.subplots(figsize=(6.4, 6.0))
+    for e in edges:
+        i, j = int(e[0]), int(e[1])
+        if j - i > 1:                                # loop closure: chord between revisits
+            ax.plot([gt[i, 0], gt[j, 0]], [gt[i, 1], gt[j, 1]], color="0.85", lw=0.6, zorder=0)
+    ax.plot(odo_a[:, 0], odo_a[:, 1], "r--", lw=1.5, label=f"odometry only — ATE {ate_odo:.2f} (drifts)")
+    ax.plot(gt[:, 0], gt[:, 1], "k-", lw=2.4, label="ground truth (hidden)")
+    ax.plot(opt_a[:, 0], opt_a[:, 1], color="#16a34a", lw=1.8, label=f"optimized — ATE {ate_opt:.2f} → VERIFIED")
+    ax.scatter([gt[0, 0]], [gt[0, 1]], c="k", s=40, zorder=5, label="start")
+    ax.set_title("Rung 0 — 2D pose-graph: loop closures cancel drift")
+    ax.set_aspect("equal"); ax.legend(loc="best", fontsize=8); ax.grid(alpha=0.2)
+    fig.tight_layout(); fig.savefig(out_path, dpi=110); plt.close(fig)
+    return f"ATE odo={ate_odo:.3f} opt={ate_opt:.3f}, {sum(1 for e in edges if e[1]-e[0]>1)} loop closures"
+
+
+def viz_vo(out_path: str, seed: int = 0) -> str:
+    """Rung 1 (3D, top-down x-z): GT vs honest VO vs 'camera never moved'."""
+    from .worlds.visual_odometry import _world, rpe, run_vo
+    poses, intr, frames = _world(seed)
+    est = run_vo(intr, frames)
+    static = [np.eye(4) for _ in frames]
+    gp = np.array([T[:3, 3] for T in poses])         # frame0 = identity for both → no align
+    ep = np.array([T[:3, 3] for T in est])
+    sp = np.array([T[:3, 3] for T in static])
+    rpe_vo, rpe_static = rpe(est, poses), rpe(static, poses)
+
+    fig, ax = plt.subplots(figsize=(6.8, 5.2))
+    ax.plot(gp[:, 2], gp[:, 0], "k-", lw=2.4, label="ground truth (hidden)")
+    ax.plot(ep[:, 2], ep[:, 0], color="#16a34a", lw=1.8, label=f"honest VO — RPE {rpe_vo:.3f} → VERIFIED")
+    ax.plot(sp[:, 2], sp[:, 0], "rx", ms=7, label=f"static 'never moved' — RPE {rpe_static:.2f} → REJECTED")
+    ax.scatter([gp[0, 2]], [gp[0, 0]], c="k", s=40, zorder=5)
+    ax.set_title("Rung 1 — RGBD visual odometry (top-down)")
+    ax.set_xlabel("z (forward)"); ax.set_ylabel("x")
+    ax.set_aspect("equal"); ax.legend(loc="best", fontsize=8); ax.grid(alpha=0.2)
+    fig.tight_layout(); fig.savefig(out_path, dpi=110); plt.close(fig)
+    return f"RPE vo={rpe_vo:.3f} static={rpe_static:.3f}"
+
+
+def viz_slam(out_path: str, seed: int = 0) -> str:
+    """Rung 2 (3D, top-down x-z): GT vs full SLAM vs VO-only, over the landmark ring."""
+    from .worlds.visual_slam import _world, ate, run_slam, run_vo_only
+    poses, intr, frames = _world(seed)
+    slam = run_slam(intr, frames)
+    vo = run_vo_only(intr, frames)
+    gp = np.array([T[:3, 3] for T in poses])
+    sp = _umeyama([T[:3, 3] for T in slam], gp, 3)   # GT frame0 != identity → align
+    vp = _umeyama([T[:3, 3] for T in vo], gp, 3)
+    ate_slam, ate_vo = ate(slam, poses), ate(vo, poses)
+
+    rng = np.random.default_rng(seed)
+    ang = rng.uniform(0, 2 * np.pi, 500); rad = rng.uniform(7, 12, 500)
+    fig, ax = plt.subplots(figsize=(6.6, 6.0))
+    ax.scatter(rad * np.sin(ang), rad * np.cos(ang), s=2, c="0.8", label="landmarks")
+    ax.plot(vp[:, 2], vp[:, 0], "r-", lw=1.5, label=f"VO only — ATE {ate_vo:.2f} → REJECTED")
+    ax.plot(gp[:, 2], gp[:, 0], "k-", lw=2.4, label="ground truth (hidden)")
+    ax.plot(sp[:, 2], sp[:, 0], color="#16a34a", lw=1.8, label=f"full SLAM — ATE {ate_slam:.2f} → VERIFIED")
+    ax.set_title("Rung 2 — full visual SLAM: loop closure > odometry")
+    ax.set_xlabel("z"); ax.set_ylabel("x")
+    ax.set_aspect("equal"); ax.legend(loc="best", fontsize=8); ax.grid(alpha=0.2)
+    fig.tight_layout(); fig.savefig(out_path, dpi=110); plt.close(fig)
+    return f"ATE slam={ate_slam:.3f} vo_only={ate_vo:.3f}"

@@ -18,8 +18,9 @@ jobs:
       - name: Clone Touchstone verifier
         run: git clone --depth 1 https://github.com/WhaSukGO/touchstone.git "$RUNNER_TEMP/touchstone"
 
+      # numpy/scipy/matplotlib: lodestar; pyyaml: Touchstone's image_registry (offline path).
       - name: Install dependencies
-        run: pip install numpy scipy matplotlib pytest
+        run: pip install numpy scipy matplotlib pytest pyyaml
 
       # Proves clone-and-run: the offline rungs/suite/viz pass against Touchstone's master.
       - name: Run tests

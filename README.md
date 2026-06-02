@@ -40,7 +40,8 @@ offline suite (no API spend, CPU only):
 ```bash
 git clone https://github.com/WhaSukGO/touchstone.git
 git clone https://github.com/WhaSukGO/lodestar.git
-pip install numpy scipy matplotlib pytest        # + claude-agent-sdk only for the live demo
+pip install numpy scipy matplotlib pytest pyyaml  # pyyaml: Touchstone's image_registry
+                                                  # (+ claude-agent-sdk only for the live demo)
 cd lodestar && python -m pytest -q                # Rung 0/1/2 through the real verifier
 python -m lodestar.run_suite                      # robustness table across environments
 python -m lodestar.run_viz                        # regenerate the preview images

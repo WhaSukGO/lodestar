@@ -16,6 +16,10 @@ a SLAM algorithm: optimize the      -->    run it in a sandbox, align the estima
 graph / VO / full SLAM                     HIDDEN ground-truth trajectory, score ATE, gate
 ```
 
+**Docs:** [docs/DESIGN.md](docs/DESIGN.md) — architecture, the verifier path, what each rung
+is. [docs/ENGINEERING.md](docs/ENGINEERING.md) — harness-engineering principles, the past
+failures that shaped them, and the geometry/numerics tradeoffs taken.
+
 ## Rung 0 (done): "the popcount of SLAM" — 2D pose-graph optimization
 
 No renderer, no ML, pure numpy. A robot drives a self-overlapping 2D path; the solver gets

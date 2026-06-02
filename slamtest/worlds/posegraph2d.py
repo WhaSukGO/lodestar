@@ -164,7 +164,7 @@ def posegraph_task() -> ImplementationTask:
             "cancelled. Write the optimized trajectory — one 'x,y,theta' per line, same "
             "order as nodes_init — to $LAB_ARTIFACTS/trajectory.csv."),
         framework=FrameworkSpec("numpy", "2.3", "cpu"),
-        entry_command="python3 $LAB_CODE/main.py",
+        entry_command="timeout 120 python3 $LAB_CODE/main.py",
         eval_command="python3 $LAB_CODE/eval.py", eval_code=_EVAL,
         metric="ate", op="<=", threshold=0.12,
         datasets=[DatasetRef("pg2d-graph", "synthetic"),

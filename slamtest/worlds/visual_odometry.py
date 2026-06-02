@@ -175,7 +175,7 @@ def vo_task() -> ImplementationTask:
             "comma-separated numbers — the 3x3 rotation row-major (9) then translation (3), "
             "in frame order."),
         framework=FrameworkSpec("numpy", "2.3", "cpu"),
-        entry_command="python3 $LAB_CODE/main.py",
+        entry_command="timeout 120 python3 $LAB_CODE/main.py",
         eval_command="python3 $LAB_CODE/eval.py", eval_code=_EVAL,
         metric="rpe", op="<=", threshold=0.15,
         datasets=[DatasetRef("vo-frames", "synthetic"),

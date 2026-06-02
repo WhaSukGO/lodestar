@@ -39,9 +39,14 @@ from lab.factory import build_implementer_harness        # noqa: E402
 from lab.models import (  # noqa: E402
     DatasetRef, ExperimentRecord, FrameworkSpec, Usage,
 )
+# Live solver seam: the multi-agent coding committee + the real Claude session runner. These
+# pull in NO heavy deps at import time (claude_agent_sdk is lazy inside run_agent).
+from lab.agents.code_committee import code_committee_author  # noqa: E402
+from lab.agents.sdk import DEFAULT_MODEL, run_agent          # noqa: E402
 
 __all__ = ["ImplementationTask", "build_implementer_harness", "DatasetRef",
-           "ExperimentRecord", "FrameworkSpec", "Usage", "ver2_path"]
+           "ExperimentRecord", "FrameworkSpec", "Usage", "ver2_path",
+           "code_committee_author", "run_agent", "DEFAULT_MODEL"]
 
 
 def ver2_path() -> str:

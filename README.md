@@ -88,11 +88,28 @@ python -m slamtest.run_slam_demo
 | **2 ✅** | full visual SLAM + loop closure | feature tracks + revisits | ATE | numpy |
 | 3 | image-based SLAM | rendered frames | ATE | Habitat / Blender headless |
 
-Then layer a **committee solver** (multi-agent, from ver2's `code_committee`) that authors
-these SLAM modules — graded, as always, by the fixed verifier.
+## Live: a committee of agents as the solver (done)
 
-Then layer a **committee solver** (multi-agent, from ver2's `code_committee`) that assembles
-the SLAM modules — graded, as always, by the fixed verifier.
+The highlight of the two-layer model — the verifier and domain are unchanged; only the
+**solver** is swapped from canned reference code to a real multi-agent team (ver2's
+`code_committee`: PLANNER → CODER → REVIEWER, each a live Claude session). The committee
+authors the algorithm **blind** (it reasons and writes code; it does not execute it), and the
+verifier grades the result on the hidden trajectory.
+
+| Solver | Rung | Metric (hidden GT) | Verdict |
+|---|---|---|---|
+| Live committee (PLANNER→CODER→REVIEWER) | 1 (RGBD VO) | RPE **0.122** | VERIFIED |
+
+A real agent team authored working visual odometry (a 198-line solution, reviewer-approved),
+confirmed on data it never saw — ~3 API calls, ≈\$0.78. An agent solver still gets **no free
+pass**: it is graded by the same fixed verifier as everything else.
+
+```bash
+python -m slamtest.run_committee_live --rung 1     # spends API tokens; key from ver2/.env
+```
+
+(The solver runs under a `timeout` guard so blind-authored code that loops is rejected, not
+hung.)
 
 ## Reuse
 

@@ -55,14 +55,37 @@ against the **hidden** ground-truth trajectory.
 python -m slamtest.run_vo_demo
 ```
 
+## Rung 2 (done): full visual SLAM — VO + loop closure + SE(3) pose-graph
+
+The first complete SLAM loop, still pure numpy. It fuses the earlier rungs: Rung 1's RGBD VO
+is the **front-end**, Rung 0's pose-graph optimization — now in 3D (SE(3)) — is the
+**back-end**. The camera orbits a scene twice, so frames far apart in time re-observe the
+same landmarks; those **loop closures** tie the trajectory together and cancel drift. The
+oracle returns to global **ATE**.
+
+| Solver | ATE (hidden GT) | Verdict |
+|---|---|---|
+| Full SLAM (odometry + loop closure + optimization) | **0.04 m** | VERIFIED |
+| VO only — Rung 1's odometry with no loop closure | **0.17 m** | REJECTED |
+
+Both *ran*; loop closure is **what makes SLAM more than odometry**, and the verifier
+measures exactly that on a held-out trajectory.
+
+```bash
+python -m slamtest.run_slam_demo
+```
+
 ## Roadmap (rung by rung — start cheap, add fidelity only when each rung holds)
 
 | Rung | Task | Input | Oracle | Deps |
 |---|---|---|---|---|
 | **0 ✅** | 2D pose-graph optimization | constraint graph | ATE | numpy |
 | **1 ✅** | RGBD visual odometry | synthetic feature tracks | RPE | numpy |
-| 2 | full visual SLAM + loop closure | feature tracks + revisits | ATE + map | numpy |
+| **2 ✅** | full visual SLAM + loop closure | feature tracks + revisits | ATE | numpy |
 | 3 | image-based SLAM | rendered frames | ATE | Habitat / Blender headless |
+
+Then layer a **committee solver** (multi-agent, from ver2's `code_committee`) that authors
+these SLAM modules — graded, as always, by the fixed verifier.
 
 Then layer a **committee solver** (multi-agent, from ver2's `code_committee`) that assembles
 the SLAM modules — graded, as always, by the fixed verifier.

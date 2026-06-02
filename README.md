@@ -40,8 +40,9 @@ offline suite (no API spend, CPU only):
 ```bash
 git clone https://github.com/WhaSukGO/touchstone.git
 git clone https://github.com/WhaSukGO/lodestar.git
-pip install numpy scipy matplotlib pytest pyyaml  # pyyaml: Touchstone's image_registry
-                                                  # (+ claude-agent-sdk only for the live demo)
+pip install numpy scipy matplotlib opencv-python-headless pytest pyyaml
+# opencv: Rung 3 (image-based) · pyyaml: Touchstone's image_registry
+# (+ claude-agent-sdk only for the live committee demo)
 cd lodestar && python -m pytest -q                # Rung 0/1/2 through the real verifier
 python -m lodestar.run_suite                      # robustness table across environments
 python -m lodestar.run_viz                        # regenerate the preview images
@@ -128,6 +129,23 @@ measures exactly that on a held-out trajectory.
 python -m lodestar.run_slam_demo
 ```
 
+## Rung 3 (done): image-based VO — features detected from pixels
+
+The first rung where the solver gets **actual rendered frames, not feature tracks**. It must
+do its own perception: detect keypoints (cv2 ORB), describe and **match them across frames by
+appearance** (real data association — no landmark IDs), back-project matched keypoints with
+depth, and fit SE(3) motion. The "renderer" is deliberately minimal — a procedural patch-splat
+rasterizer, not Habitat/Blender — but it produces images with genuine, matchable features.
+
+| Solver | RPE (hidden GT) | Verdict |
+|---|---|---|
+| Honest image VO (ORB detect + match + depth back-projection) | **0.01 m** | VERIFIED |
+| Static — "the camera never moved" | **0.30 m** | REJECTED |
+
+```bash
+python -m lodestar.run_image_slam_demo     # needs opencv (cv2)
+```
+
 ## Selectable environments — a robustness suite
 
 Each rung's world is parameterized (noise, loop-closure density, landmark count, trajectory
@@ -159,7 +177,7 @@ the Rung 1 and Rung 2 robustness grids into `docs/img/`.
 | **0 ✅** | 2D pose-graph optimization | constraint graph | ATE | numpy |
 | **1 ✅** | RGBD visual odometry | synthetic feature tracks | RPE | numpy |
 | **2 ✅** | full visual SLAM + loop closure | feature tracks + revisits | ATE | numpy |
-| 3 | image-based SLAM | rendered frames | ATE | Habitat / Blender headless |
+| **3 ✅** | image-based VO (features from pixels) | rendered RGBD frames | RPE | numpy + opencv |
 
 ## Live: a committee of agents as the solver (done)
 

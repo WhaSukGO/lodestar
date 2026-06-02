@@ -19,6 +19,23 @@ a SLAM algorithm: optimize the      -->    run it in a sandbox, align the estima
 graph / VO / full SLAM                     HIDDEN ground-truth trajectory, score ATE, gate
 ```
 
+## Quickstart
+
+Lodestar reuses the **Touchstone** verifier — clone both repos as siblings, then run the
+offline suite (no API spend, CPU only):
+
+```bash
+git clone https://github.com/WhaSukGO/touchstone.git
+git clone https://github.com/WhaSukGO/lodestar.git
+pip install numpy scipy matplotlib pytest        # + claude-agent-sdk only for the live demo
+cd lodestar && python -m pytest -q                # Rung 0/1/2 through the real verifier
+python -m lodestar.run_suite                      # robustness table across environments
+python -m lodestar.run_viz                        # regenerate the preview images
+```
+
+`lodestar/_spine.py` finds Touchstone automatically when it sits at `../touchstone`, or set
+`$TOUCHSTONE_PATH` to point anywhere. The verifier is the constant; Lodestar is the domain.
+
 **Docs:** [docs/DESIGN.md](docs/DESIGN.md) — architecture, the verifier path, what each rung
 is. [docs/ENGINEERING.md](docs/ENGINEERING.md) — harness-engineering principles, the past
 failures that shaped them, and the geometry/numerics tradeoffs taken.
@@ -149,11 +166,13 @@ confirmed on data it never saw — ~3 API calls, ≈\$0.78. An agent solver stil
 pass**: it is graded by the same fixed verifier as everything else.
 
 ```bash
-python -m lodestar.run_committee_live --rung 1     # spends API tokens; key from ver2/.env
+python -m lodestar.run_committee_live --rung 1     # spends API tokens; key from Touchstone's .env
 ```
 
 (The solver runs under a `timeout` guard so blind-authored code that loops is rejected, not
-hung.)
+hung.) This live demo is **optional** — it additionally needs the `code_committee` solver from
+Touchstone's `coding-solver` branch and an `ANTHROPIC_API_KEY`. The offline rungs, suite, and
+viz need only Touchstone's `master`.
 
 ## Reuse
 

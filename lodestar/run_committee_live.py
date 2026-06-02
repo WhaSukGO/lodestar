@@ -25,8 +25,7 @@ import sys
 from dotenv import load_dotenv
 
 from ._spine import (
-    DEFAULT_MODEL, ExperimentRecord, build_implementer_harness, code_committee_author,
-    run_agent, ver2_path,
+    ExperimentRecord, build_implementer_harness, live_committee, ver2_path,
 )
 
 _RUNGS = {
@@ -43,10 +42,13 @@ def _load(rung: str):
     return getattr(mod, prov)(), getattr(mod, task_fn)(), label
 
 
-def main(rung: str = "1", model: str = DEFAULT_MODEL) -> None:
+def main(rung: str = "1", model: str | None = None) -> None:
+    # live-only deps (committee + Claude runner); not needed for the offline rungs/suite/viz
+    code_committee_author, run_agent, default_model = live_committee()
+    model = model or default_model
     load_dotenv(os.path.join(ver2_path(), ".env"))
     if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("ANTHROPIC_API_KEY not found (looked in ver2/.env). Aborting.")
+        print("ANTHROPIC_API_KEY not found (looked in Touchstone's .env). Aborting.")
         return
 
     provider, task, label = _load(rung)
@@ -113,7 +115,7 @@ def main(rung: str = "1", model: str = DEFAULT_MODEL) -> None:
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    rung = "1"; model = DEFAULT_MODEL
+    rung = "1"; model = None
     if "--rung" in args:
         rung = args[args.index("--rung") + 1]
     if "--model" in args:

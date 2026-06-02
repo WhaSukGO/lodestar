@@ -37,13 +37,31 @@ python -m slamtest.run_posegraph_demo      # offline, no API spend
 python -m pytest tests/ -q
 ```
 
+## Rung 1 (done): RGBD visual odometry — the SLAM front-end
+
+Still no renderer, no ML, pure numpy. A camera flies through a cloud of 3D landmarks; each
+frame yields RGBD feature observations `[landmark_id, u, v, depth]` (a shared `landmark_id`
+is a track). The solver back-projects pixels+depth to 3D, matches tracks between consecutive
+frames, estimates each frame-to-frame rigid motion (Procrustes/Umeyama SE(3)), and chains
+them. RGBD = metric scale, so the verifier scores **Relative Pose Error (RPE)** directly
+against the **hidden** ground-truth trajectory.
+
+| Solver | RPE (hidden GT) | Verdict |
+|---|---|---|
+| Honest RGBD VO (Procrustes per frame pair) | **0.04 m** | VERIFIED |
+| Static — "the camera never moved" (identity every frame) | **0.36 m** | REJECTED |
+
+```bash
+python -m slamtest.run_vo_demo
+```
+
 ## Roadmap (rung by rung — start cheap, add fidelity only when each rung holds)
 
 | Rung | Task | Input | Oracle | Deps |
 |---|---|---|---|---|
 | **0 ✅** | 2D pose-graph optimization | constraint graph | ATE | numpy |
-| 1 | visual odometry | synthetic feature tracks | RPE | numpy |
-| 2 | full visual SLAM + loop closure | synthetic 2D observations | ATE + map | numpy |
+| **1 ✅** | RGBD visual odometry | synthetic feature tracks | RPE | numpy |
+| 2 | full visual SLAM + loop closure | feature tracks + revisits | ATE + map | numpy |
 | 3 | image-based SLAM | rendered frames | ATE | Habitat / Blender headless |
 
 Then layer a **committee solver** (multi-agent, from ver2's `code_committee`) that assembles

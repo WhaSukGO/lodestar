@@ -16,10 +16,11 @@ that merely *runs* drifts off (red → REJECTED):
 
 ![](docs/img/rung0_suite.png)
 
-Concretely, Lodestar is a **ground-truth generator + geometric oracle**: it builds synthetic
-worlds (pose-graph / RGBD feature tracks / looping scenes), runs your algorithm in a sandbox,
-and scores its trajectory against the hidden ground truth with **ATE / RPE**. "It produced a
-trajectory" is never mistaken for "the trajectory is correct."
+Concretely, Lodestar is a **ground-truth generator + geometric oracle**: it builds worlds across
+a fidelity ladder — pose-graphs, RGBD feature tracks, looping scenes, offscreen-rendered 3D
+rooms, **photorealistic path-traced renders**, and even **real SLAM benchmark data** (ICL-NUIM)
+— runs your algorithm in a sandbox, and scores its trajectory against the hidden ground truth
+with **ATE / RPE**. "It produced a trajectory" is never mistaken for "the trajectory is correct."
 
 This repo is the **world builder + SLAM oracle**. The **verifier is reused, not forked** —
 it's the same Touchstone spine from [`blueberry_ver2`](../blueberry_ver2) (sandboxed run +
@@ -43,10 +44,12 @@ git clone https://github.com/WhaSukGO/lodestar.git
 pip install numpy scipy matplotlib opencv-python-headless pytest pyyaml
 # opencv: Rung 3 (image-based) · pyyaml: Touchstone's image_registry
 # (+ claude-agent-sdk only for the live committee demo)
-# Rung 4 (real 3D renderer) additionally needs pyrender + trimesh + a software-GL lib:
-#   pip install pyrender trimesh   and an OSMesa lib (conda: `conda install -c conda-forge
-#   mesalib`; apt: `libosmesa6`). Rung 4 auto-skips if the offscreen GL stack is absent.
-cd lodestar && python -m pytest -q                # Rung 0-3 through the real verifier (Rung 4 if GL present)
+# Optional, real-world-environment rungs (each auto-skips if its deps are absent):
+#   Rung 4 (mesh render):  pip install pyrender trimesh  + an OSMesa lib (conda: `conda install
+#                          -c conda-forge mesalib`; apt: `libosmesa6`)
+#   Rung 5 (path-traced):  pip install blenderproc  (ships its own Blender; CPU/CUDA, no EGL)
+#   Rung 6 (real dataset): nothing extra — auto-downloads ICL-NUIM (~700 MB) to ~/.cache/lodestar
+cd lodestar && python -m pytest -q                # Rungs 0-3 through the real verifier (4-6 if deps present)
 python -m lodestar.run_suite                      # robustness table across environments
 python -m lodestar.run_viz                        # regenerate the preview images
 ```
@@ -178,6 +181,61 @@ is reused as a *world*, not as part of grading — the held-out RPE oracle is un
 python -m lodestar.run_mesh_slam_demo      # needs pyrender + trimesh + OSMesa (see Quickstart)
 ```
 
+## Rung 5 (done): a *photorealistic* world — path-traced with BlenderProc / Cycles
+
+Rung 4's rasterizer gives flat shading and hard edges. Rung 5 renders the world with Blender's
+**Cycles path tracer** (via **BlenderProc**): real **global illumination, soft shadows**, and
+inter-reflections on a textured PBR room (wood floor, plaster walls, furniture) — the lighting a
+real camera sees. Crucially, Cycles renders on **CPU or CUDA-compute**, so it needs **no
+OpenGL/EGL display** — the same constraint that rules out GPU pyrender, Habitat, Isaac and CARLA
+on a headless box.
+
+![](docs/img/rung5_blender.png)
+
+Same two-layer payoff, harder pixels: the world emits the identical `frames.npz` contract, so the
+**unchanged** ORB solver is graded on a path-traced render. Honest VO is VERIFIED; "the camera
+never moved" is REJECTED.
+
+| Solver | RPE (hidden GT) | Verdict |
+|---|---|---|
+| Honest image VO (ORB on the path-traced render) | **0.005 m** | VERIFIED |
+| Static — "the camera never moved" | **0.28 m** | REJECTED |
+
+Rendering is host-side and out-of-process (`blenderproc run` from the dataset provider); the
+solver sandbox still needs only numpy + cv2. BlenderProc ships its own Blender, so `pip install
+blenderproc` is all the world-generation needs.
+
+```bash
+python -m lodestar.run_blender_slam_demo   # needs blenderproc (pip install blenderproc)
+```
+
+## Rung 6 (done): the toy-to-real step — VO on a *real SLAM benchmark* (ICL-NUIM)
+
+The previous rungs build their own worlds. This one takes the opposite, most-robust route: a
+real, widely-cited RGB-D SLAM benchmark — **ICL-NUIM** (Handa et al.) — *is* the world.
+Photorealistic ray-traced frames + metric depth + a perfect ground-truth camera trajectory that
+the SLAM community actually benchmarks on. We hold the trajectory out and grade the same ORB
+solver on it. Real data, zero render risk.
+
+![](docs/img/rung6_icl.png)
+
+ICL-NUIM moves only ~6.5 m over 1508 frames, so per-frame RPE can't separate honest VO from "the
+camera never moved" — but **ATE** can: a static solver collapses to a single point while the
+ground truth sweeps the room. So this rung grades on the SE(3)-aligned **ATE** oracle.
+
+| Solver | ATE (hidden GT) | Verdict |
+|---|---|---|
+| Honest image VO (ORB on the real sequence) | **0.011 m** | VERIFIED |
+| Static — "the camera never moved" | **0.12 m** | REJECTED |
+
+This closes the loop from synthetic worlds to data a real SLAM system is measured on — the
+verifier and solver are unchanged, only the world is now real. The dataset (~700 MB) is
+auto-downloaded and cached to `~/.cache/lodestar` on first run.
+
+```bash
+python -m lodestar.run_icl_slam_demo       # downloads ICL-NUIM (~700 MB) on first run
+```
+
 ## Selectable environments — a robustness suite
 
 Each rung's world is parameterized (noise, loop-closure density, landmark count, trajectory
@@ -211,6 +269,28 @@ the Rung 1 and Rung 2 robustness grids into `docs/img/`.
 | **2 ✅** | full visual SLAM + loop closure | feature tracks + revisits | ATE | numpy |
 | **3 ✅** | image-based VO (features from pixels) | billboard-rendered RGBD | RPE | numpy + opencv |
 | **4 ✅** | image VO on a real 3D mesh world | offscreen-rendered 3D scene | RPE | + pyrender/OSMesa |
+| **5 ✅** | image VO on a photorealistic world | path-traced render (GI + shadows) | RPE | + blenderproc |
+| **6 ✅** | VO on a real SLAM benchmark | ICL-NUIM RGB-D dataset | ATE | + dataset (~700 MB) |
+
+## Rendering backends & the headless-GPU constraint
+
+Generating real-world-like worlds needs a renderer that produces RGB + metric depth + ground-truth
+poses **without an OpenGL/EGL display** (a headless box — e.g. WSL2 with no `/dev/dri` — can't
+create EGL contexts, even with a CUDA GPU present). That single constraint decides what's usable:
+
+| Backend | Renders via | Works headless here? | Used by |
+|---|---|---|---|
+| **pyrender + OSMesa** | software GL (CPU) | ✅ | Rung 4 |
+| **BlenderProc / Cycles** | CPU or **CUDA-compute** (no EGL) | ✅ | Rung 5 |
+| **ICL-NUIM dataset** | pre-rendered (no renderer) | ✅ | Rung 6 |
+| **nvdiffrast** `RasterizeCudaContext` | **CUDA-compute** (no EGL) | ✅ (proven in Docker) | `docker/` spike |
+| Habitat-Sim / Isaac Sim / CARLA | EGL / Vulkan **display** | ❌ (no headless EGL) | — |
+
+The lesson: prefer renderers that go through **CUDA-compute or software**, not a GL/Vulkan display.
+`docker/run_nvdiffrast_spike.sh` proves EGL-free GPU rasterization works inside a GPU container
+(`--gpus all` + NVIDIA Container Toolkit), with hang-safe patterns (`--rm`, `--name`, `timeout`)
+since GPU containers can stall on context creation. Habitat/Isaac/CARLA were evaluated and ruled
+out on this hardware: their headless paths still require an EGL/Vulkan display.
 
 ## Live: a committee of agents as the solver (done)
 

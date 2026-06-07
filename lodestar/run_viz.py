@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 
-from .viz import viz_mesh, viz_posegraph, viz_slam, viz_suite, viz_vo
+from .viz import viz_blender, viz_icl, viz_mesh, viz_posegraph, viz_slam, viz_suite, viz_vo
 
 
 def main() -> None:

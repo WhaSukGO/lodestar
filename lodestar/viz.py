@@ -11,6 +11,8 @@ the same Umeyama fit the oracle uses, so the picture shows trajectory *shape* er
 arbitrary global frame)."""
 from __future__ import annotations
 
+import os
+
 import numpy as np
 
 import matplotlib
@@ -125,6 +127,60 @@ def viz_vo(out_path: str, seed: int = 0) -> str:
     ax.set_aspect("equal"); ax.legend(loc="best", fontsize=8); ax.grid(alpha=0.2)
     fig.tight_layout(); fig.savefig(out_path, dpi=110); plt.close(fig)
     return f"RPE vo={rpe_vo:.3f} static={rpe_static:.3f}"
+
+
+def viz_icl(out_path: str, seed: int = 0) -> str:
+    """Rung 6: a real ICL-NUIM benchmark frame (left) next to GT vs honest VO vs static, top-down
+    (right). Real RGB-D data, hidden GT trajectory, SE(3)-aligned ATE. Needs the cached dataset."""
+    from .worlds import dataset_slam as ds
+    poses, intr, rgb, depth = ds._world()
+    est = ds.run_image_vo(rgb, depth.astype(np.float32), intr)
+    ate_h = ds.ate(est, poses)
+    ate_s = ds.ate([np.eye(4) for _ in poses], poses)
+    gp = np.array([T[:3, 3] for T in poses])
+    ep = _umeyama([T[:3, 3] for T in est], gp, 3)
+
+    fig, (axi, ax) = plt.subplots(1, 2, figsize=(11.0, 4.6))
+    axi.imshow(rgb[len(rgb) // 2], cmap="gray")
+    axi.set_title("ICL-NUIM frame — REAL RGB-D benchmark", fontsize=9)
+    axi.set_xticks([]); axi.set_yticks([])
+    ax.plot(gp[:, 2], gp[:, 0], "k-", lw=2.4, label="ground truth (hidden)")
+    ax.plot(ep[:, 2], ep[:, 0], color="#16a34a", lw=1.8, label=f"honest VO — ATE {ate_h:.3f} → VERIFIED")
+    ax.scatter([gp[0, 2]], [gp[0, 0]], c="k", s=40, zorder=5, label="start")
+    ax.set_title(f"trajectory (top-down) · static 'never moved' ATE {ate_s:.2f} → REJECTED", fontsize=9)
+    ax.set_xlabel("z"); ax.set_ylabel("x")
+    ax.set_aspect("equal"); ax.legend(loc="best", fontsize=8); ax.grid(alpha=0.2)
+    fig.suptitle("Rung 6 — VO graded on a real SLAM benchmark (ICL-NUIM)", fontsize=11)
+    fig.tight_layout(rect=(0, 0, 1, 0.95)); fig.savefig(out_path, dpi=110); plt.close(fig)
+    return f"ATE honest={ate_h:.3f} static={ate_s:.3f}"
+
+
+def viz_blender(out_path: str, seed: int = 0) -> str:
+    """Rung 5: a path-traced color frame (left) next to GT vs honest VO, top-down (right).
+    Renders the world with BlenderProc (slow) — needs blenderproc installed."""
+    from PIL import Image
+    from .worlds.blender_slam import render_world, rpe, run_image_vo
+    poses, intr, rgb, depth, outdir = render_world(seed=seed)
+    est = run_image_vo(rgb, depth.astype(np.float32), intr)
+    rpe_h = rpe(est, poses)
+    rpe_s = rpe([np.eye(4) for _ in poses], poses)
+    gp = np.array([T[:3, 3] for T in poses])
+    ep = np.array([T[:3, 3] for T in est])
+
+    fig, (axi, ax) = plt.subplots(1, 2, figsize=(11.0, 5.0))
+    cpath = os.path.join(outdir, "preview_color.png")
+    axi.imshow(np.asarray(Image.open(cpath)) if os.path.exists(cpath) else rgb[len(rgb) // 2])
+    axi.set_title("path-traced frame (Cycles: GI + soft shadows)", fontsize=9)
+    axi.set_xticks([]); axi.set_yticks([])
+    ax.plot(gp[:, 2], gp[:, 0], "k-", lw=2.4, label="ground truth (hidden)")
+    ax.plot(ep[:, 2], ep[:, 0], color="#16a34a", lw=1.8, label=f"honest VO — RPE {rpe_h:.3f} → VERIFIED")
+    ax.scatter([gp[0, 2]], [gp[0, 0]], c="k", s=40, zorder=5, label="start")
+    ax.set_title(f"trajectory (top-down) · static 'never moved' RPE {rpe_s:.2f} → REJECTED", fontsize=9)
+    ax.set_xlabel("z (forward)"); ax.set_ylabel("x")
+    ax.set_aspect("equal"); ax.legend(loc="best", fontsize=8); ax.grid(alpha=0.2)
+    fig.suptitle("Rung 5 — image VO on a photorealistic path-traced world (BlenderProc/Cycles)", fontsize=11)
+    fig.tight_layout(rect=(0, 0, 1, 0.95)); fig.savefig(out_path, dpi=110); plt.close(fig)
+    return f"RPE honest={rpe_h:.3f} static={rpe_s:.3f}"
 
 
 def viz_mesh(out_path: str, seed: int = 0) -> str:

@@ -38,10 +38,37 @@ def _rot(ax, ay, az):
     return Rz @ Ry @ Rx
 
 
+_CC_DIR = os.path.expanduser("~/.cache/lodestar/cc_textures")
+_CC = {n: os.path.join(_CC_DIR, n, f"{n}_1K-JPG_Color.jpg")
+       for n in ("WoodFloor043", "Wood062", "Plaster001", "Fabric077", "Tiles093", "Carpet013")}
+
+
+def _cc_available():
+    return all(os.path.exists(p) for p in _CC.values())
+
+
 def _block_tex(n=18, px=14):
     """High-contrast block texture -> stable ORB corners survive path-tracer shading."""
     small = rng.integers(20, 235, (n, n, 3), dtype=np.uint8)
     return np.repeat(np.repeat(small, px, 0), px, 1)
+
+
+def _pbr_material(name, cc_key, uv_scale=4.0, roughness=0.75):
+    """A material whose base color is a REAL CC0 photo texture (ambientCG), UV-tiled. Path-traced
+    over real materials (wood, plaster, tile, fabric) -> a photorealistic, feature-rich room."""
+    mat = bpy.data.materials.new(name); mat.use_nodes = True
+    nt = mat.node_tree
+    bsdf = nt.nodes.get("Principled BSDF")
+    bsdf.inputs["Roughness"].default_value = roughness
+    img = bpy.data.images.load(_CC[cc_key])          # JPG, sRGB color space (correct for base color)
+    tex = nt.nodes.new("ShaderNodeTexImage"); tex.image = img
+    coord = nt.nodes.new("ShaderNodeTexCoord")
+    mapping = nt.nodes.new("ShaderNodeMapping")
+    mapping.inputs["Scale"].default_value = (uv_scale, uv_scale, uv_scale)
+    nt.links.new(mapping.inputs["Vector"], coord.outputs["UV"])
+    nt.links.new(tex.inputs["Vector"], mapping.outputs["Vector"])
+    nt.links.new(bsdf.inputs["Base Color"], tex.outputs["Color"])
+    return mat
 
 
 def _textured_material(name, tex):
@@ -68,17 +95,31 @@ def _attach(obj, mat):
     bo.data.materials.append(mat)
 
 
+# surface -> (CC0 texture, UV tiling). Falls back to block textures if the CC0 set isn't present.
+_PLANE_CC = {"floor": ("WoodFloor043", 6.0), "ceil": ("Plaster001", 5.0), "back": ("Plaster001", 5.0),
+             "left": ("Plaster001", 5.0), "right": ("Plaster001", 5.0)}
+_BOX_CC = [("Wood062", 2.0), ("Fabric077", 2.0), ("Tiles093", 2.0), ("Carpet013", 2.0)]
+
+
 def _plane(name, location, rotation, scale):
     p = bproc.object.create_primitive("PLANE")
     p.set_location(location); p.set_rotation_euler(rotation); p.set_scale(scale)
-    _attach(p, _textured_material(name, _block_tex(24)))
+    if _cc_available() and name in _PLANE_CC:
+        key, uv = _PLANE_CC[name]
+        _attach(p, _pbr_material(name, key, uv_scale=uv))
+    else:
+        _attach(p, _textured_material(name, _block_tex(24)))
     return p
 
 
-def _box(name, location, scale):
+def _box(name, location, scale, idx=0):
     b = bproc.object.create_primitive("CUBE")
     b.set_location(location); b.set_scale(scale)
-    _attach(b, _textured_material(name, _block_tex()))
+    if _cc_available():
+        key, uv = _BOX_CC[idx % len(_BOX_CC)]
+        _attach(b, _pbr_material(name, key, uv_scale=uv))
+    else:
+        _attach(b, _textured_material(name, _block_tex()))
     return b
 
 
@@ -99,13 +140,14 @@ def build_scene():
     boxes = [(-2.2, 4.0, 0.9), (2.4, 5.5, 1.1), (-0.8, 7.0, 0.7), (2.6, 8.5, 0.9),
              (-2.6, 10.0, 1.0), (0.9, 11.5, 0.8), (-1.4, 13.0, 1.0), (2.2, 14.0, 0.9)]
     for i, (x, z, s) in enumerate(boxes):
-        _box(f"box{i}", [x, -HY + s, z], [s, s, s])                # rests on the floor
+        _box(f"box{i}", [x, -HY + s, z], [s, s, s], idx=i)         # rests on the floor
     # Ceiling area lights, aimed DOWN (-y), for soft shadows + global illumination. High wattage
     # because a path-traced room this size needs it to be well-exposed.
+    energy = 500 if _cc_available() else 1200          # PBR materials need much less wattage
     for lx, lz in [(-1.5, 4.0), (1.5, 8.0), (-1.0, 12.0)]:
         light = bproc.types.Light(); light.set_type("AREA")
         light.set_location([lx, HY - 0.1, lz]); light.set_rotation_euler([-np.pi / 2, 0, 0])
-        light.set_energy(1200); light.set_scale([3, 3, 3])
+        light.set_energy(energy); light.set_scale([3, 3, 3])
 
 
 def camera_traj(F):
@@ -127,9 +169,9 @@ def main():
     bpy.context.scene.view_settings.view_transform = "Standard"
     world = bpy.context.scene.world; world.use_nodes = True
     bg = world.node_tree.nodes.get("Background")
-    if bg is not None:                                  # bright, fairly uniform ambient fill so NO
-        bg.inputs[0].default_value = (0.55, 0.57, 0.6, 1.0)   # frame is underexposed (ORB needs it)
-        bg.inputs[1].default_value = 3.0
+    if bg is not None:                                  # real PBR materials are higher-albedo than the
+        bg.inputs[0].default_value = (0.5, 0.52, 0.55, 1.0)  # block fallback, so they need far less
+        bg.inputs[1].default_value = 1.0 if _cc_available() else 3.0   # light to avoid blowing out
     build_scene()
 
     f_pix = RES * (400.0 / 480.0)                       # match Rung 4 fov (~480px@f400)

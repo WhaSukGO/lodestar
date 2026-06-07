@@ -127,6 +127,33 @@ def viz_vo(out_path: str, seed: int = 0) -> str:
     return f"RPE vo={rpe_vo:.3f} static={rpe_static:.3f}"
 
 
+def viz_mesh(out_path: str, seed: int = 0) -> str:
+    """Rung 4: a sample rendered frame from the real 3D scene (left) next to GT vs honest VO vs
+    static, top-down (right). The frame shows it's a true render — occlusion, perspective — not
+    a billboard splat. Needs the offscreen GL stack (pyrender + OSMesa)."""
+    from .worlds.mesh_slam import _world, rpe, run_image_vo
+    poses, intr, rgb, depth = _world(seed)
+    est = run_image_vo(rgb, depth.astype(np.float32), intr)
+    static = [np.eye(4) for _ in poses]
+    gp = np.array([T[:3, 3] for T in poses])             # frame0 = identity for both → no align
+    ep = np.array([T[:3, 3] for T in est])
+    rpe_vo, rpe_static = rpe(est, poses), rpe(static, poses)
+
+    fig, (axi, ax) = plt.subplots(1, 2, figsize=(11.0, 5.0))
+    axi.imshow(rgb[len(rgb) // 2], cmap="gray")
+    axi.set_title("rendered frame (real 3D mesh: occlusion + perspective)", fontsize=9)
+    axi.set_xticks([]); axi.set_yticks([])
+    ax.plot(gp[:, 2], gp[:, 0], "k-", lw=2.4, label="ground truth (hidden)")
+    ax.plot(ep[:, 2], ep[:, 0], color="#16a34a", lw=1.8, label=f"honest VO — RPE {rpe_vo:.3f} → VERIFIED")
+    ax.scatter([gp[0, 2]], [gp[0, 0]], c="k", s=40, zorder=5, label="start")
+    ax.set_title(f"trajectory (top-down) · static 'never moved' RPE {rpe_static:.2f} → REJECTED", fontsize=9)
+    ax.set_xlabel("z (forward)"); ax.set_ylabel("x")
+    ax.set_aspect("equal"); ax.legend(loc="best", fontsize=8); ax.grid(alpha=0.2)
+    fig.suptitle("Rung 4 — image VO on an actual 3D world (pyrender/OSMesa)", fontsize=11)
+    fig.tight_layout(rect=(0, 0, 1, 0.95)); fig.savefig(out_path, dpi=110); plt.close(fig)
+    return f"RPE vo={rpe_vo:.3f} static={rpe_static:.3f}"
+
+
 def viz_slam(out_path: str, seed: int = 0) -> str:
     """Rung 2 (3D, top-down x-z): GT vs full SLAM vs VO-only, over the landmark ring."""
     from .worlds.visual_slam import _world, ate, run_slam, run_vo_only

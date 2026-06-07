@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 
-from .viz import viz_posegraph, viz_slam, viz_suite, viz_vo
+from .viz import viz_mesh, viz_posegraph, viz_slam, viz_suite, viz_vo
 
 
 def main() -> None:
@@ -16,6 +16,11 @@ def main() -> None:
                      ("rung2_slam", viz_slam)]:
         path = os.path.join(outdir, name + ".png")
         print(f"  wrote docs/img/{name}.png   ({fn(path)})")
+    try:                                                 # Rung 4 needs the offscreen GL stack
+        path = os.path.join(outdir, "rung4_mesh.png")
+        print(f"  wrote docs/img/rung4_mesh.png   ({viz_mesh(path)})")
+    except Exception as e:
+        print(f"  skipped rung4_mesh.png (offscreen GL unavailable: {e})")
     for rung in ("0", "1", "2"):                         # robustness grids (viz x suite)
         path = os.path.join(outdir, f"rung{rung}_suite.png")
         print(f"  wrote docs/img/rung{rung}_suite.png   ({viz_suite(rung, path)})")

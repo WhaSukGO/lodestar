@@ -43,7 +43,10 @@ git clone https://github.com/WhaSukGO/lodestar.git
 pip install numpy scipy matplotlib opencv-python-headless pytest pyyaml
 # opencv: Rung 3 (image-based) · pyyaml: Touchstone's image_registry
 # (+ claude-agent-sdk only for the live committee demo)
-cd lodestar && python -m pytest -q                # Rung 0/1/2 through the real verifier
+# Rung 4 (real 3D renderer) additionally needs pyrender + trimesh + a software-GL lib:
+#   pip install pyrender trimesh   and an OSMesa lib (conda: `conda install -c conda-forge
+#   mesalib`; apt: `libosmesa6`). Rung 4 auto-skips if the offscreen GL stack is absent.
+cd lodestar && python -m pytest -q                # Rung 0-3 through the real verifier (Rung 4 if GL present)
 python -m lodestar.run_suite                      # robustness table across environments
 python -m lodestar.run_viz                        # regenerate the preview images
 ```
@@ -146,6 +149,35 @@ rasterizer, not Habitat/Blender — but it produces images with genuine, matchab
 python -m lodestar.run_image_slam_demo     # needs opencv (cv2)
 ```
 
+## Rung 4 (done): an *actual* 3D world — a real mesh scene, offscreen-rendered
+
+Rung 3's "renderer" cheated: each feature was a camera-facing texture splat — a flat billboard
+that never occludes anything and never perspective-warps. Rung 4 renders a **genuine 3D scene**
+with a real GL rasterizer (**pyrender** on **OSMesa** — software, CPU-only, no GPU/display): a
+textured room with boxes standing inside it. Now near surfaces **truly occlude** far ones, walls
+**foreshorten** with viewing angle, and features appear/disappear as the camera moves — i.e.
+real, hard data association.
+
+![](docs/img/rung4_mesh.png)
+
+The payoff for the two-layer thesis: **the solver is unchanged.** Rung 4 emits the exact same
+`frames.npz` contract as Rung 3 (grayscale + metric depth + intrinsics), so the *very same* ORB
+detect+match+back-project+Procrustes front-end is graded here on a real 3D world — and "the
+camera never moved" is still REJECTED. Same verifier, same solver, harder world.
+
+| Solver | RPE (hidden GT) | Verdict |
+|---|---|---|
+| Honest image VO (ORB on real rendered geometry) | **0.004 m** | VERIFIED |
+| Static — "the camera never moved" | **0.45 m** | REJECTED |
+
+Rendering is **host-side** (it happens in the dataset provider, not the sandbox): only world
+*generation* needs pyrender; the solver sandbox still needs nothing but numpy + cv2. The renderer
+is reused as a *world*, not as part of grading — the held-out RPE oracle is unchanged.
+
+```bash
+python -m lodestar.run_mesh_slam_demo      # needs pyrender + trimesh + OSMesa (see Quickstart)
+```
+
 ## Selectable environments — a robustness suite
 
 Each rung's world is parameterized (noise, loop-closure density, landmark count, trajectory
@@ -177,7 +209,8 @@ the Rung 1 and Rung 2 robustness grids into `docs/img/`.
 | **0 ✅** | 2D pose-graph optimization | constraint graph | ATE | numpy |
 | **1 ✅** | RGBD visual odometry | synthetic feature tracks | RPE | numpy |
 | **2 ✅** | full visual SLAM + loop closure | feature tracks + revisits | ATE | numpy |
-| **3 ✅** | image-based VO (features from pixels) | rendered RGBD frames | RPE | numpy + opencv |
+| **3 ✅** | image-based VO (features from pixels) | billboard-rendered RGBD | RPE | numpy + opencv |
+| **4 ✅** | image VO on a real 3D mesh world | offscreen-rendered 3D scene | RPE | + pyrender/OSMesa |
 
 ## Live: a committee of agents as the solver (done)
 

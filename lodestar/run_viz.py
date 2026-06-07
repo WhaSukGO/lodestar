@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import os
 
-from .viz import viz_blender, viz_icl, viz_mesh, viz_posegraph, viz_slam, viz_suite, viz_vo
+from .viz import (
+    viz_blender, viz_icl, viz_mesh, viz_posegraph, viz_replica, viz_slam, viz_suite, viz_vo,
+)
 
 
 def main() -> None:
@@ -16,11 +18,17 @@ def main() -> None:
                      ("rung2_slam", viz_slam)]:
         path = os.path.join(outdir, name + ".png")
         print(f"  wrote docs/img/{name}.png   ({fn(path)})")
-    try:                                                 # Rung 4 needs the offscreen GL stack
-        path = os.path.join(outdir, "rung4_mesh.png")
-        print(f"  wrote docs/img/rung4_mesh.png   ({viz_mesh(path)})")
-    except Exception as e:
-        print(f"  skipped rung4_mesh.png (offscreen GL unavailable: {e})")
+    # Real-world-environment rungs — each needs optional deps (GL stack / blenderproc / datasets),
+    # so they're guarded and skip cleanly when those aren't present.
+    for name, fn in [("rung4_mesh", viz_mesh),           # pyrender/OSMesa
+                     ("rung5_blender", viz_blender),      # BlenderProc/Cycles
+                     ("rung6_icl", viz_icl),              # ICL-NUIM dataset
+                     ("rung7_replica", viz_replica)]:     # Replica scanned scene
+        path = os.path.join(outdir, name + ".png")
+        try:
+            print(f"  wrote docs/img/{name}.png   ({fn(path)})")
+        except Exception as e:
+            print(f"  skipped {name}.png ({type(e).__name__}: {e})")
     for rung in ("0", "1", "2"):                         # robustness grids (viz x suite)
         path = os.path.join(outdir, f"rung{rung}_suite.png")
         print(f"  wrote docs/img/rung{rung}_suite.png   ({viz_suite(rung, path)})")

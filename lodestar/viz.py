@@ -155,6 +155,34 @@ def viz_icl(out_path: str, seed: int = 0) -> str:
     return f"ATE honest={ate_h:.3f} static={ate_s:.3f}"
 
 
+def viz_replica(out_path: str, seed: int = 0) -> str:
+    """Rung 7: a frame rendered from a REAL scanned Replica apartment (left) next to GT vs honest
+    VO, top-down (right). Renders via BlenderProc (slow) — needs blenderproc + a cached scene."""
+    from PIL import Image
+    from .worlds.replica_slam import render_world, rpe, run_image_vo
+    poses, intr, rgb, depth, outdir = render_world(seed=seed)
+    est = run_image_vo(rgb, depth.astype(np.float32), intr)
+    rpe_h = rpe(est, poses)
+    rpe_s = rpe([np.eye(4) for _ in poses], poses)
+    gp = np.array([T[:3, 3] for T in poses])
+    ep = _umeyama([T[:3, 3] for T in est], gp, 3)
+
+    fig, (axi, ax) = plt.subplots(1, 2, figsize=(11.0, 4.8))
+    cpath = os.path.join(outdir, "preview_color.png")
+    axi.imshow(np.asarray(Image.open(cpath)) if os.path.exists(cpath) else rgb[len(rgb) // 2])
+    axi.set_title("real scanned apartment (Replica) — rendered frame", fontsize=9)
+    axi.set_xticks([]); axi.set_yticks([])
+    ax.plot(gp[:, 2], gp[:, 0], "k-", lw=2.4, label="ground truth (hidden)")
+    ax.plot(ep[:, 2], ep[:, 0], color="#16a34a", lw=1.8, label=f"honest VO — RPE {rpe_h:.3f} → VERIFIED")
+    ax.scatter([gp[0, 2]], [gp[0, 0]], c="k", s=40, zorder=5, label="start")
+    ax.set_title(f"trajectory (top-down) · static 'never moved' RPE {rpe_s:.2f} → REJECTED", fontsize=9)
+    ax.set_xlabel("z"); ax.set_ylabel("x")
+    ax.set_aspect("equal"); ax.legend(loc="best", fontsize=8); ax.grid(alpha=0.2)
+    fig.suptitle("Rung 7 — image VO on a real scanned apartment (Replica, via BlenderProc)", fontsize=11)
+    fig.tight_layout(rect=(0, 0, 1, 0.95)); fig.savefig(out_path, dpi=110); plt.close(fig)
+    return f"RPE honest={rpe_h:.3f} static={rpe_s:.3f}"
+
+
 def viz_blender(out_path: str, seed: int = 0) -> str:
     """Rung 5: a path-traced color frame (left) next to GT vs honest VO, top-down (right).
     Renders the world with BlenderProc (slow) — needs blenderproc installed."""

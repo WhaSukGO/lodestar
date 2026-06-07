@@ -49,7 +49,9 @@ pip install numpy scipy matplotlib opencv-python-headless pytest pyyaml
 #                          -c conda-forge mesalib`; apt: `libosmesa6`)
 #   Rung 5 (path-traced):  pip install blenderproc  (ships its own Blender; CPU/CUDA, no EGL)
 #   Rung 6 (real dataset): nothing extra — auto-downloads ICL-NUIM (~700 MB) to ~/.cache/lodestar
-cd lodestar && python -m pytest -q                # Rungs 0-3 through the real verifier (4-6 if deps present)
+#   Rung 7 (real scan):    pip install blenderproc + a Replica scene cached at
+#                          ~/.cache/lodestar/replica/<scene>/mesh.ply (Replica is a free ~12 GB DL)
+cd lodestar && python -m pytest -q                # Rungs 0-3 through the real verifier (4-7 if deps present)
 python -m lodestar.run_suite                      # robustness table across environments
 python -m lodestar.run_viz                        # regenerate the preview images
 ```
@@ -236,6 +238,34 @@ auto-downloaded and cached to `~/.cache/lodestar` on first run.
 python -m lodestar.run_icl_slam_demo       # downloads ICL-NUIM (~700 MB) on first run
 ```
 
+## Rung 7 (done): a *real scanned apartment* — Replica, rendered with BlenderProc
+
+Rung 5 path-traces a room *I* authored. Rung 7 renders a **real, laser-scanned indoor
+environment** from the **Replica** dataset (Straub et al., FAIR) — ~1M vertex-colored triangles
+of an actual apartment — with Cycles (CPU/CUDA, no EGL). This is the "open world builder" answer:
+a professionally captured 3D world dropped into the **same** render-and-grade path as Rung 5
+(swap `build_scene()` for `bproc.loader.load_replica(...)`; everything downstream is unchanged).
+
+![](docs/img/rung7_replica.png)
+
+The mesh carries the captured colors per-vertex, so it's given an **emissive vertex-color
+material** — the scan's appearance renders directly (no light placement, never black). A camera
+is flown through the room (poses authored in the scene's own frame, GT written in OpenCV
+convention). Same ORB solver, graded on a real scanned world:
+
+| Solver | RPE (hidden GT) | Verdict |
+|---|---|---|
+| Honest image VO (ORB on the scanned room) | **0.02 m** | VERIFIED |
+| Static — "the camera never moved" | **0.17 m** | REJECTED |
+
+This is the most "real-world" of the rendered rungs — the pixels are a real place, not an
+authored one. Replica is a free (~12 GB) download with no signup; cache a scene under
+`~/.cache/lodestar/replica/<scene>/mesh.ply`.
+
+```bash
+python -m lodestar.run_replica_slam_demo   # needs blenderproc + a cached Replica scene
+```
+
 ## Selectable environments — a robustness suite
 
 Each rung's world is parameterized (noise, loop-closure density, landmark count, trajectory
@@ -271,6 +301,7 @@ the Rung 1 and Rung 2 robustness grids into `docs/img/`.
 | **4 ✅** | image VO on a real 3D mesh world | offscreen-rendered 3D scene | RPE | + pyrender/OSMesa |
 | **5 ✅** | image VO on a photorealistic world | path-traced render (GI + shadows) | RPE | + blenderproc |
 | **6 ✅** | VO on a real SLAM benchmark | ICL-NUIM RGB-D dataset | ATE | + dataset (~700 MB) |
+| **7 ✅** | VO on a real scanned apartment | Replica scene, path-traced | RPE | + blenderproc + Replica |
 
 ## Rendering backends & the headless-GPU constraint
 
@@ -283,6 +314,7 @@ create EGL contexts, even with a CUDA GPU present). That single constraint decid
 | **pyrender + OSMesa** | software GL (CPU) | ✅ | Rung 4 |
 | **BlenderProc / Cycles** | CPU or **CUDA-compute** (no EGL) | ✅ | Rung 5 |
 | **ICL-NUIM dataset** | pre-rendered (no renderer) | ✅ | Rung 6 |
+| **Replica** (real scans) via BlenderProc | CPU or **CUDA-compute** (no EGL) | ✅ | Rung 7 |
 | **nvdiffrast** `RasterizeCudaContext` | **CUDA-compute** (no EGL) | ✅ (proven in Docker) | `docker/` spike |
 | Habitat-Sim / Isaac Sim / CARLA | EGL / Vulkan **display** | ❌ (no headless EGL) | — |
 

@@ -17,10 +17,11 @@ that merely *runs* drifts off (red → REJECTED):
 ![](docs/img/rung0_suite.png)
 
 Concretely, Lodestar is a **ground-truth generator + geometric oracle**: it builds worlds across
-a fidelity ladder — pose-graphs, RGBD feature tracks, looping scenes, offscreen-rendered 3D
-rooms, **photorealistic path-traced renders**, and even **real SLAM benchmark data** (ICL-NUIM)
-— runs your algorithm in a sandbox, and scores its trajectory against the hidden ground truth
-with **ATE / RPE**. "It produced a trajectory" is never mistaken for "the trajectory is correct."
+a fidelity ladder — from pose-graphs and RGBD feature tracks to offscreen-rendered 3D rooms,
+**photorealistic path-traced renders**, **real scanned apartments** (Replica), and **real
+benchmark data both indoor (ICL-NUIM) and automotive (KITTI driving)** — runs your algorithm in
+a sandbox, and scores its trajectory against the hidden ground truth with **ATE / RPE**. "It
+produced a trajectory" is never mistaken for "the trajectory is correct."
 
 This repo is the **world builder + SLAM oracle**. The **verifier is reused, not forked** —
 it's the same Touchstone spine from [`blueberry_ver2`](../blueberry_ver2) (sandboxed run +
@@ -51,7 +52,9 @@ pip install numpy scipy matplotlib opencv-python-headless pytest pyyaml
 #   Rung 6 (real dataset): nothing extra — auto-downloads ICL-NUIM (~700 MB) to ~/.cache/lodestar
 #   Rung 7 (real scan):    pip install blenderproc + a Replica scene cached at
 #                          ~/.cache/lodestar/replica/<scene>/mesh.ply (Replica is a free ~12 GB DL)
-cd lodestar && python -m pytest -q                # Rungs 0-3 through the real verifier (4-7 if deps present)
+#   Rung 8 (automotive):   KITTI odometry (gray+calib+poses) cached at ~/.cache/lodestar/kitti
+#                          (real driving data; stereo->depth via opencv; gray zip ~22 GB)
+cd lodestar && python -m pytest -q                # Rungs 0-3 through the real verifier (4-8 if deps present)
 python -m lodestar.run_suite                      # robustness table across environments
 python -m lodestar.run_viz                        # regenerate the preview images
 ```
@@ -266,6 +269,33 @@ authored one. Replica is a free (~12 GB) download with no signup; cache a scene 
 python -m lodestar.run_replica_slam_demo   # needs blenderproc + a cached Replica scene
 ```
 
+## Rung 8 (done): going OUTDOORS — automotive SLAM on real KITTI driving data
+
+Rungs 0–7 are indoor (handheld/robot). Rung 8 is the **car**: the **KITTI odometry benchmark**
+(Geiger et al.) — a stereo camera on a vehicle through real streets, with a GPS/IMU ground-truth
+trajectory. It's the canonical automotive VO/SLAM dataset.
+
+![](docs/img/rung8_kitti.png)
+
+KITTI ships *stereo*, not dense depth, so this rung adds exactly one step: compute per-pixel depth
+from the left/right pair with a stereo block matcher (`cv2.StereoSGBM`, depth = fx·baseline/disparity,
+far/invalid masked). That depth + the left image + intrinsics are the same `frames.npz` contract,
+so the **unchanged** ORB solver runs here too. KITTI's camera frame is OpenCV optical and its
+poses are camera-to-world with frame 0 = identity — matching the solver, no flip needed.
+
+| Solver | RPE (hidden GT) | Verdict |
+|---|---|---|
+| Honest image VO (ORB + stereo depth on real driving frames) | **0.23 m** | VERIFIED |
+| Static — "the car never moved" | **0.89 m** | REJECTED |
+
+Large forward motion (~0.9 m/frame at 10 Hz) makes the degenerate baseline fail hard. The dataset
+(gray stereo ~22 GB) is cached under `~/.cache/lodestar/kitti`; only a sequence's frames are
+extracted from the zip. Free, public.
+
+```bash
+python -m lodestar.run_kitti_slam_demo     # needs the KITTI odometry data cached
+```
+
 ## Selectable environments — a robustness suite
 
 Each rung's world is parameterized (noise, loop-closure density, landmark count, trajectory
@@ -302,6 +332,7 @@ the Rung 1 and Rung 2 robustness grids into `docs/img/`.
 | **5 ✅** | image VO on a photorealistic world | path-traced render (GI + shadows) | RPE | + blenderproc |
 | **6 ✅** | VO on a real SLAM benchmark | ICL-NUIM RGB-D dataset | ATE | + dataset (~700 MB) |
 | **7 ✅** | VO on a real scanned apartment | Replica scene, path-traced | RPE | + blenderproc + Replica |
+| **8 ✅** | automotive VO on real driving data | KITTI odometry (stereo→depth) | RPE | + opencv + KITTI (~22 GB) |
 
 ## Rendering backends & the headless-GPU constraint
 
@@ -315,6 +346,7 @@ create EGL contexts, even with a CUDA GPU present). That single constraint decid
 | **BlenderProc / Cycles** | CPU or **CUDA-compute** (no EGL) | ✅ | Rung 5 |
 | **ICL-NUIM dataset** | pre-rendered (no renderer) | ✅ | Rung 6 |
 | **Replica** (real scans) via BlenderProc | CPU or **CUDA-compute** (no EGL) | ✅ | Rung 7 |
+| **KITTI** (real driving) | pre-recorded stereo → SGBM depth | ✅ | Rung 8 |
 | **nvdiffrast** `RasterizeCudaContext` | **CUDA-compute** (no EGL) | ✅ (proven in Docker) | `docker/` spike |
 | Habitat-Sim / Isaac Sim / CARLA | EGL / Vulkan **display** | ❌ (no headless EGL) | — |
 

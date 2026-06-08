@@ -155,6 +155,33 @@ def viz_icl(out_path: str, seed: int = 0) -> str:
     return f"ATE honest={ate_h:.3f} static={ate_s:.3f}"
 
 
+def viz_kitti(out_path: str, seed: int = 0) -> str:
+    """Rung 8: a real KITTI driving frame (left) next to the car's GT path vs honest VO, top-down
+    (right). Real automotive stereo data; depth from SGBM. Needs the cached KITTI sequence."""
+    from .worlds import kitti_slam as K
+    poses, intr, rgb, depth = K._world()
+    est = K.run_image_vo(rgb, depth.astype(np.float32), intr)
+    rpe_h = K.rpe(est, poses)
+    rpe_s = K.rpe([np.eye(4) for _ in poses], poses)
+    gp = np.array([T[:3, 3] for T in poses])
+    ep = np.array([T[:3, 3] for T in est])           # frame0 = identity for both -> no alignment
+
+    fig, (axi, ax) = plt.subplots(1, 2, figsize=(12.0, 4.2),
+                                  gridspec_kw={"width_ratios": [1.7, 1]})
+    axi.imshow(rgb[len(rgb) // 2], cmap="gray")
+    axi.set_title("KITTI frame — REAL car-camera (driving)", fontsize=9)
+    axi.set_xticks([]); axi.set_yticks([])
+    ax.plot(gp[:, 2], gp[:, 0], "k-", lw=2.4, label="ground truth (hidden)")
+    ax.plot(ep[:, 2], ep[:, 0], color="#16a34a", lw=1.8, label=f"honest VO — RPE {rpe_h:.2f} → VERIFIED")
+    ax.scatter([gp[0, 2]], [gp[0, 0]], c="k", s=40, zorder=5, label="start")
+    ax.set_title(f"car trajectory (top-down) · static RPE {rpe_s:.2f} → REJECTED", fontsize=9)
+    ax.set_xlabel("z (forward, m)"); ax.set_ylabel("x (m)")
+    ax.set_aspect("equal"); ax.legend(loc="best", fontsize=8); ax.grid(alpha=0.2)
+    fig.suptitle("Rung 8 — automotive VO on real KITTI driving data", fontsize=11)
+    fig.tight_layout(rect=(0, 0, 1, 0.95)); fig.savefig(out_path, dpi=110); plt.close(fig)
+    return f"RPE honest={rpe_h:.3f} static={rpe_s:.3f}"
+
+
 def viz_replica(out_path: str, seed: int = 0) -> str:
     """Rung 7: a frame rendered from a REAL scanned Replica apartment (left) next to GT vs honest
     VO, top-down (right). Renders via BlenderProc (slow) — needs blenderproc + a cached scene."""

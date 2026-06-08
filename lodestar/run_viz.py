@@ -6,7 +6,8 @@ from __future__ import annotations
 import os
 
 from .viz import (
-    viz_blender, viz_icl, viz_mesh, viz_posegraph, viz_replica, viz_slam, viz_suite, viz_vo,
+    viz_blender, viz_icl, viz_kitti, viz_mesh, viz_posegraph, viz_replica, viz_slam, viz_suite,
+    viz_vo,
 )
 
 
